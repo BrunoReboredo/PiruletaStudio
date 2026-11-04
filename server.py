@@ -33,6 +33,7 @@ def make_server(store, media, port=18767):
             routes = {'/': ROOT/'program.html', '/program': ROOT/'program.html',
                       '/overlay': ROOT/'vendor/overlay/overlay.html',
                       '/postmatch': ROOT/'vendor/postmatch/postmatch.html',
+                      '/audio/engine-start.wav': ROOT/'vendor/audio/engine-start.wav',
                       '/boost-animation.js': ROOT/'vendor/overlay/boost-animation.js',
                       '/assets/torneo.png': ROOT/'vendor/overlay/assets/torneo.png'}
             path = routes.get(route)

@@ -18,7 +18,7 @@ from server import make_server
 from render import prepare, cached_clips
 from library import Library
 from obs import OBS, SCENES
-from marker import MarkerPanel
+from marker import MarkerPanel, install_check_style
 from media import imported_manifest, mp4_duration
 
 ROOT = Path(__file__).resolve().parent
@@ -39,6 +39,7 @@ class App:
         root.configure(bg='#14121e')
         style = ttk.Style()
         style.theme_use('clam')
+        install_check_style(root, style)
         style.configure('.', background='#201c2e', foreground='#faf6ff', font=('Segoe UI', 10))
         style.configure('TFrame', background='#14121e')
         style.configure('TLabelframe', background='#201c2e', padding=12)
@@ -452,6 +453,9 @@ class App:
             self.error(exc)
 
     def render(self):
+        if not self.profile:
+            self.error('Completa los datos de la nueva serie antes de preparar vídeos.')
+            return
         if self.store.armed:
             self.error('Configura una nueva serie antes de volver a preparar sus escenas.')
             return
@@ -515,6 +519,9 @@ class App:
                 self.error(exc)
 
     def start(self):
+        if not self.profile:
+            self.error('Completa los datos de la nueva serie antes de iniciarla.')
+            return
         if not self.media:
             return
         if self.store.armed:
@@ -577,6 +584,23 @@ class App:
                 self.events.put(('obs', 'OBS · reintentando: '+str(exc)))
                 self.stop.wait(2)
 
+    def finish_series_form(self):
+        """Keep the completed result on air while collecting the next series."""
+        with self.store.lock:
+            self.store.armed = False
+        wins = ' — '.join(str(t['wins']) for t in self.store.config['teams'])
+        self.phase.set('Serie finalizada · '+wins)
+        self.profile = None
+        self.profile_fingerprints.clear()
+        self.start_button.configure(state='disabled')
+        for fields in self.fields:
+            for variable in fields.values():
+                variable.set('')
+        self.vars['bestof'].set('5')
+        self.tabs.select(self.setup_tab)
+        self.setup_canvas.yview_moveto(0)
+        self.note.set('Serie finalizada ('+wins+'). Completa los datos de los nuevos equipos para preparar otra serie.')
+
     def tick(self):
         self.store.tick()
         state = self.store.snapshot()
@@ -613,6 +637,8 @@ class App:
                 self.continue_button.configure(state='normal')
                 if self.media and not self.store.armed:
                     self.start_button.configure(state='normal')
+        if self.store.armed and s['phase'] == 'complete' and state['series']['complete']:
+            self.finish_series_form()
         self.root.after(100, self.tick)
 
     def close(self):

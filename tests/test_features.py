@@ -117,6 +117,22 @@ class WorkflowTests(unittest.TestCase):
         self.store.tick()
         self.assertEqual(self.store.phase, 'complete')
 
+    def test_marker_only_in_game_preserves_pause_and_replay(self):
+        s = self.store
+        self.assertFalse(s.snapshot()['studio']['gameplay'])
+        for event in ('MatchInitialized', 'CountdownBegin', 'RoundStarted'):
+            s.ingest(dict(Event=event, Data={}))
+            self.assertTrue(s.gameplay)
+        for event in ('MatchPaused', 'GoalReplayStart', 'GoalReplayEnd', 'MatchUnpaused'):
+            s.ingest(dict(Event=event, Data={}))
+            self.assertTrue(s.gameplay)
+        self.end_auto()
+        self.assertFalse(s.gameplay)
+        self.podium()
+        self.assertFalse(s.gameplay)
+        s.ingest(dict(Event='MatchDestroyed', Data={}))
+        self.assertFalse(s.gameplay)
+
     def test_swapped_team_plays_its_original_prepared_victory(self):
         s = self.store
         s.config['bestof'] = 1
@@ -259,6 +275,34 @@ class DesktopIntegrationTests(unittest.TestCase):
         self.assertEqual(config['teams'][0]['short'], 'T0')
         self.connection.assert_called_once()
         self.connection.return_value.connect.assert_called_once()
+
+    def test_completed_series_returns_to_empty_setup_once(self):
+        app = self.app
+        app.store.config['bestof'] = 1
+        app.store.armed = True
+        app.store.finish(0)
+        app.store.transition('complete')
+        app.tick()
+        self.assertEqual(app.tabs.select(), str(app.setup_tab))
+        self.assertIsNone(app.profile)
+        self.assertFalse(app.store.armed)
+        self.assertEqual(str(app.start_button['state']), 'disabled')
+        self.assertEqual(app.store.config['teams'][0]['wins'], 1)
+        for fields in app.fields:
+            self.assertTrue(all(not v.get() for v in fields.values()))
+        app.fields[0]['name'].set('Siguiente equipo')
+        app.tick()
+        self.assertEqual(app.fields[0]['name'].get(), 'Siguiente equipo')
+        self.assertIn('finalizada', app.note.get())
+
+    def test_marker_visibility_uses_check_images(self):
+        self.assertEqual(len(self.root.marker_check_images), 2)
+        self.assertEqual(self.root.marker_check_images[1].get(7, 12), (255, 255, 255))
+        def checks(widget):
+            return [child for child in widget.winfo_children() if child.winfo_class() == 'TCheckbutton'] + [c for child in widget.winfo_children() for c in checks(child)]
+        checkboxes = checks(self.app.marker.design_tabs)
+        self.assertTrue(checkboxes)
+        self.assertTrue(all(c['style'] == 'Marker.TCheckbutton' for c in checkboxes))
 
     def test_marker_color_picker_preserves_animation_profile(self):
         profile = copy.deepcopy(self.app.profile)

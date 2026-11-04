@@ -7,6 +7,24 @@ from tkinter import ttk, filedialog, messagebox
 from vendor.overlay.app import App as OverlayApp, SERIES_FORMATS
 
 
+def install_check_style(root, style):
+    images = []
+    for selected in (False, True):
+        image = tk.PhotoImage(master=root, width=18, height=18)
+        image.put('#b6a4c3', to=(0, 0, 18, 18))
+        image.put('#e749a0' if selected else '#100e18', to=(1, 1, 17, 17))
+        if selected:
+            for x, y in [(4, 9), (5, 10), (6, 11), (7, 12), (8, 11), (9, 10), (10, 9), (11, 8), (12, 7), (13, 6)]:
+                image.put('#ffffff', to=(x, y, x+2, y+2))
+        images.append(image)
+    root.marker_check_images = images
+    style.element_create('Marker.indicator', 'image', images[0], ('selected', images[1]))
+    style.layout('Marker.TCheckbutton', [('Checkbutton.padding', {'sticky': 'nswe', 'children': [
+        ('Marker.indicator', {'side': 'left', 'sticky': ''}),
+        ('Checkbutton.focus', {'side': 'left', 'sticky': 'w', 'children': [
+            ('Checkbutton.label', {'sticky': 'nswe'})]})]})])
+
+
 class MarkerPanel(OverlayApp):
     def __init__(self, parent, owner):
         self.owner = owner
@@ -101,7 +119,7 @@ class MarkerPanel(OverlayApp):
             v = tk.BooleanVar(value=self.store.config[k])
             self.vars[k] = v
             ttk.Checkbutton(visibility, text='  '+label, variable=v, command=self.apply,
-                            style='TCheckbutton').pack(anchor='w', pady=5)
+                            style='Marker.TCheckbutton').pack(anchor='w', pady=5)
         ttk.Button(left, text='Aplicar diseño', style='Control.TButton', command=self.apply).pack(anchor='e')
         ttk.Label(right, text='CONTROL DEL PARTIDO', font=('Segoe UI', 13, 'bold')).pack(anchor='w', pady=(0, 10))
         ttk.Label(right, text='Formato de la serie', font=('Segoe UI', 10, 'bold')).pack(anchor='w')

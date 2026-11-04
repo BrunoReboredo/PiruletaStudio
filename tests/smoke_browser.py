@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def main():
     state = preview_snapshot(Studio())
     state['media'] = {}
-    state['studio'] = dict(phase='game', revision=1)
+    state['studio'] = dict(phase='game', revision=1, gameplay=True)
     state['config']['colors']['pink'] = '#00ff00'
     state['config']['colors']['yellow'] = '#0077ff'
     # Frozen result intentionally retains different colors.
@@ -59,8 +59,21 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   blackAnimation.finish();await change;
   if(Number(getComputedStyle(black).opacity)!==0)throw Error('Black layer remained');
   for(const id of ids){if(id!==p&&getComputedStyle(document.getElementById(id)).visibility!=='hidden')throw Error('Outgoing '+id)}
+  if(p==='pre'&&document.getElementById('engine').paused)throw Error('Engine audio did not start in pre');
+  if(p!=='pre'&&!document.getElementById('engine').paused)throw Error('Engine audio outside pre');
   previous=p;
  }
+ const sample=await(await fetch('/state')).json(),overlay=document.getElementById('game').contentWindow;
+ for(const [phase,gameplay,expected] of [['game',true,'visible'],['game',false,'hidden'],['pre',true,'hidden'],['stats',true,'hidden'],['victory0',true,'hidden'],['complete',true,'hidden']]){
+  sample.studio={phase,gameplay};overlay.render(sample);
+  if(overlay.getComputedStyle(overlay.document.getElementById('stage')).visibility!==expected)throw Error('Marker visibility '+phase+' '+gameplay);
+ }
+ sample.studio={phase:'game',gameplay:true};overlay.render(sample);
+ const rect=id=>overlay.document.getElementById(id).getBoundingClientRect();
+ if(Math.abs(rect('series0').left-rect('logo0').left)>1)throw Error('Left pips alignment');
+ if(Math.abs(rect('series1').right-rect('logo1').right)>1)throw Error('Right pips alignment');
+ const engine=document.getElementById('engine');
+ if(engine.duration!==8)throw Error('Engine audio did not decode: '+engine.duration);
  const frame=document.getElementById('stats').contentDocument;
  const stage=frame.getElementById('stage');
  if(stage.style.getPropertyValue('--pink')!=='#00ff00')throw Error('Stats live color');
@@ -81,6 +94,12 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
                 data, kind = json.dumps(state).encode(), 'application/json'
             elif route == '/program':
                 data, kind = program.encode(), 'text/html'
+            elif route == '/overlay':
+                data, kind = (ROOT/'vendor/overlay/overlay.html').read_bytes(), 'text/html'
+            elif route == '/boost-animation.js':
+                data, kind = (ROOT/'vendor/overlay/boost-animation.js').read_bytes(), 'application/javascript'
+            elif route == '/audio/engine-start.wav':
+                data, kind = (ROOT/'vendor/audio/engine-start.wav').read_bytes(), 'audio/wav'
             elif route == '/postmatch':
                 data, kind = (ROOT/'vendor/postmatch/postmatch.html').read_bytes(), 'text/html'
             else:
@@ -97,7 +116,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
         with tempfile.TemporaryDirectory() as profile:
             result = subprocess.run([
                 r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe',
-                '--headless', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
+                '--headless', '--autoplay-policy=no-user-gesture-required', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
                 '--disable-background-networking', '--disable-component-update',
                 '--user-data-dir='+profile, '--virtual-time-budget=5000', '--dump-dom',
                 f'http://127.0.0.1:{server.server_port}/program'],
@@ -106,7 +125,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
             if 'data-qa="PASS"' not in output:
                 import re
                 raise AssertionError(re.findall(r'data-(?:qa|error)="[^"]*"', output) or result.stderr.decode(errors='replace')[-1000:])
-            print('PASS: real browser 800 ms dip to black and live statistics palette')
+            print('PASS: real browser 800 ms black transition, marker visibility/alignment, audio decode and statistics palette')
     finally:
         server.shutdown()
         server.server_close()

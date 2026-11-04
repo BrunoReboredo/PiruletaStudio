@@ -4,7 +4,7 @@ Aplicación de escritorio para Windows que reúne Animaciones, Overlay y Estadí
 
 ## Abrir
 
-La actualización de esta entrega está en **portable/Piruleta Studio 0.5/Piruleta Studio.exe**. Las versiones anteriores se conservan en sus carpetas para no interrumpir trabajos en curso. Abre el ejecutable con doble clic y conserva `_internal` a su lado. No necesita Python instalado. Las compilaciones de desarrollo con `build.ps1` se crean en `portable/Piruleta Studio/`.
+La actualización de esta entrega está en **portable/Piruleta Studio 0.6/Piruleta Studio.exe**. Las versiones anteriores se conservan en sus carpetas para no interrumpir trabajos en curso. Abre el ejecutable con doble clic y conserva `_internal` a su lado. No necesita Python instalado. Las compilaciones de desarrollo con `build.ps1` se crean en `portable/Piruleta Studio/`.
 
 Para ejecutar el código fuente, con Python 3.11 o posterior (incluido Tkinter), abre **Abrir Piruleta Studio.cmd**. No necesita paquetes de pip. También puedes ejecutar `python app.py` desde esta carpeta.
 
@@ -143,3 +143,13 @@ Las estadísticas automáticas esperan a `PodiumStart` y aparecen 3 segundos des
 La URL del programa aplica fundidos a negro de 800 ms al entrar y salir de estadísticas, prepartido y victorias (300 ms hasta negro, 200 ms manteniendo el negro y 300 ms para revelar la siguiente escena). Con la conexión opcional de OBS, las escenas comparten esa fuente y sus cambios son inmediatos para evitar aplicar otra transición encima.
 
 En Marcador → Diseño puedes cambiar los colores de ambos equipos, del fondo y del texto. Las estadísticas usan la paleta actual del marcador, incluso para resultados ya guardados. Estos cambios no modifican los datos de serie ni invalidan los vídeos preparados: las animaciones conservan los colores elegidos en Datos de serie.
+
+## Versión 0.6
+
+El marcador aparece solo durante el juego, incluidas las pausas y repeticiones. Se oculta al finalizar el partido, durante el podio, las estadísticas y las cinemáticas. La URL independiente del marcador respeta también este estado; las vistas de ejemplo siguen disponibles.
+
+Al terminar la última pantalla de estadísticas de la serie, el panel indica el final y vuelve a Datos de la serie con los equipos vacíos. El resultado final permanece en OBS mientras rellenas la siguiente serie. Las barras de victorias se alinean con los bordes de los logos; Elementos usa casillas con marca de verificación.
+
+El prepartido sitúa los nombres blancos entre los logos y los coches, sin paneles de fondo. Debes preparar nuevos vídeos para ver la nueva composición (los anteriores siguen pudiendo cargarse manualmente). Las tomas de cámara y la duración se conservan.
+
+El programa reproduce un fragmento de 8 segundos de arranque de motor al comenzar el vídeo de prepartido, a volumen moderado, y lo detiene si se cambia de escena. Funciona también con vídeos manuales: el sonido lo añade la fuente del programa, no está incrustado en el MP4. En OBS el audio sale por la fuente de navegador: comprueba que su canal no esté silenciado. Autor: Joseph Sardin / BigSoundBank, CC0. Procedencia y adaptación en `vendor/audio/CREDITOS.txt` y en `_internal/vendor/audio/CREDITOS.txt` de la versión portable.

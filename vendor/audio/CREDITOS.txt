@@ -1,0 +1,10 @@
+Arranque de motor del prepartido
+Autor: Joseph SARDIN / BigSoundBank (LaSonotheque).
+Título: Car, Starting and Departure (sonido 0189, Citroen Saxo 1.1).
+Fuente: https://bigsoundbank.com/car-starting-and-departure-s0189.html
+Archivo original: https://bigsoundbank.com/UPLOAD/bwf-en/0189.wav
+Licencia indicada por el autor: CC0 1.0 (dominio público).
+Licencia: https://creativecommons.org/publicdomain/zero/1.0/
+Permite uso comercial, modificaciones y redistribución; no exige atribución.
+Adaptación para Piruleta Studio: primeros 8 segundos, entrada de 35 ms y salida de 1,2 s.
+Original SHA256: 0c357b9a202f292fb54ba794a25f242963cc11a042a3ec846205c02416419a0a

@@ -123,6 +123,7 @@ class Studio(Store):
         self.paused = None
         self.revision = 0
         self.generation = 0
+        self.gameplay = False
         self.armed = False
         self.result_latched = False
         self.match_number = 0
@@ -156,6 +157,7 @@ class Studio(Store):
             self.match_number = 0
             self.result_latched = False
             self.manual_live = False
+            self.gameplay = False
             self.armed = False
             self.animation_order = [0, 1]
             self.generation += 1
@@ -266,6 +268,17 @@ class Studio(Store):
         if not isinstance(data, dict):
             return False
         with self.lock:
+            if event in ('MatchInitialized', 'CountdownBegin', 'RoundStarted', 'MatchStarted'):
+                self.gameplay = True
+            elif event in ('MatchCreated', 'MatchDestroyed', 'MatchEnded', 'PodiumStart'):
+                self.gameplay = False
+            elif event == 'UpdateState':
+                game = data.get('Game', {})
+                if isinstance(game, dict):
+                    if game.get('bHasWinner'):
+                        self.gameplay = False
+                    elif data.get('Players') and not self.result_latched:
+                        self.gameplay = True
             if event == 'MatchEnded':
                 if self.armed:
                     self.finish(data.get('WinnerTeamNum'), data.get('MatchGuid'), automatic=True)
@@ -318,6 +331,7 @@ class Studio(Store):
             key = str(guid) if guid else f'local-{self.match_number}'
             if self.result_latched or key in self.finished or series_state(self.config)['complete']:
                 return False
+            self.gameplay = False
             self.finished.add(key)
             self.result_latched = True
             self.stats_cancelled = False
@@ -416,7 +430,7 @@ class Studio(Store):
     def snapshot(self):
         with self.lock:
             state = super().snapshot()
-            state['studio'] = dict(phase=self.phase, revision=self.revision,
+            state['studio'] = dict(phase=self.phase, revision=self.revision, gameplay=self.gameplay,
                                    remaining=max(0, self.deadline-self.clock()) if self.deadline is not None else None,
                                    held=self.paused is not None, manual=self.manual_live,
                                    waiting_podium=self.pending_stats and self.podium_due is None,

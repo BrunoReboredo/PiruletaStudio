@@ -144,7 +144,7 @@ class OBS:
             items = self.request('GetSceneItemList', sceneName=scene)['sceneItems']
             if not any(item['sourceName'] == SOURCE for item in items):
                 self.request('CreateSceneItem', sceneName=scene, sourceName=SOURCE, sceneItemEnabled=True)
-        # The shared browser handles the 300 ms fade; avoid a second OBS fade.
+        # The shared browser handles the 800 ms dip to black; avoid a second OBS fade.
         transitions = self.request('GetSceneTransitionList')['transitions']
         cut = next((t['transitionName'] for t in transitions if t.get('transitionKind') == 'cut_transition'), None)
         if cut:

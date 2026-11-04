@@ -217,6 +217,23 @@ def enable_object(obj, visible):
                 obj.hide_set(not visible, view_layer=layer)
 
 
+def position_pre_names(scene):
+    """Put readable white names between each crest and car, never above the crest."""
+    for team, x in (('A', -4.8), ('B', 4.8)):
+        obj = bpy.data.objects.get('NOMBRE | Equipo '+team)
+        if not obj:
+            continue
+        obj.location = (x, 1.2, 4.05)
+        obj.data.align_x = 'CENTER'
+        obj.data.align_y = 'CENTER'
+        obj.data.size = 0.46
+        bpy.context.view_layer.update()
+        width = obj.dimensions.x
+        if width > 7.8:
+            obj.data.size *= 7.8 / width
+
+
+
 def configure(config, folder):
     remove_template_cars()
     pre = bpy.data.scenes['01_PREPARTIDO_13s']
@@ -252,6 +269,7 @@ def configure(config, folder):
                 if obj:
                     enable_object(obj, False)
 
+    position_pre_names(pre)
     winner = config['winner']
     settings = config['teams'][winner]
     set_text(['NOMBRE | Ganador', 'TEXTO | Equipo ganador'], settings['name'])

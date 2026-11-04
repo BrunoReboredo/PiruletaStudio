@@ -6,6 +6,7 @@
 <iframe id="game" src="/overlay" title="Marcador"></iframe><iframe id="stats" src="/postmatch" title="Estadísticas"></iframe>
 <video id="pre" muted playsinline preload="auto"></video><video id="victory0" muted playsinline preload="auto"></video><video id="victory1" muted playsinline preload="auto"></video>
 <div id="end"><small>PIRULETA STUDIO</small><div class="teams"><img id="logo0"><b id="score"></b><img id="logo1"></div><h1 id="title">PREPARANDO LA SERIE</h1><span id="names"></span></div><div id="error"></div>
+<audio id="engine" src="/audio/engine-start.wav" preload="auto"></audio>
 <div id="fade" aria-hidden="true"></div>
 <script>
 const $=id=>document.getElementById(id),ids=['game','stats','pre','victory0','victory1','end'];let revision=-1,phase='';
@@ -34,6 +35,8 @@ async function showScene(p){
     if(active){el.currentTime=0;el.play().catch(()=>{})}else el.pause();
    }
   }
+  const engine=$('engine');engine.pause();engine.currentTime=0;engine.volume=0.6;
+  if(p==='pre')engine.play().catch(()=>{});
   blackAnimation=black.animate([{opacity:1},{opacity:0}],
    {duration:300,easing:'ease-out',fill:'both'});
   await blackAnimation.finished;
