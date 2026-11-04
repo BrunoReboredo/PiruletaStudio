@@ -47,9 +47,10 @@ DEFAULT = {
               {'name': 'GOLDEN POP', 'logo': '', 'wins': 0}],
     'colors': {'pink': '#fa54b7', 'coral': '#ff8875', 'yellow': '#ffd14c',
                'dark': '#181426', 'text': '#ffffff'},
+    'brand_logo': '',
     'show_logos': True, 'show_players': True, 'show_stats': True,
-    'show_boost': True, 'show_brand': True, 'show_events': True,
-    'design': 'angular', 'font': 'Arial', 'scale': 100, 'opacity': 100,
+    'show_boost': True, 'show_brand': False, 'show_events': True,
+    'design': 'rounded', 'font': 'Verdana', 'scale': 100, 'opacity': 100,
     'x': 360, 'y': 0, 'auto_series': True, 'custom_css': '', 'api_port': 49123,
     'panel_colors': {'boost': 'dark', 'stats': 'dark', 'players0': 'dark', 'players1': 'dark'},
     'panels': {'players0': [24, 180, 100], 'players1': [1601, 180, 100],
@@ -77,6 +78,7 @@ def normalize_config(raw):
             c[key] = bool(raw.get(key, c[key]))
     if raw.get('design') in ('angular', 'rounded', 'classic'):
         c['design'] = raw['design']
+    c['brand_logo'] = str(raw.get('brand_logo', ''))[:MAX_LOGO_DATA_URL_CHARS]
     c['custom_css'] = str(raw.get('custom_css', ''))[:50000]
     for key, value in raw.get('panel_colors', {}).items():
         if key in c['panel_colors'] and value in c['colors']:

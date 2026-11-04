@@ -56,25 +56,40 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(self.store.phase, 'stats')
         self.assertEqual(self.store.deadline, 53)
 
-    def test_victory_waits_for_later_podium(self):
+    def test_final_order_waits_for_mvp_then_victory_then_stats(self):
         self.end_auto(bestof=1)
-        self.now = 4
+        self.assertEqual(self.store.phase, 'game')
+        self.now = 40
+        self.store.tick()
+        self.assertEqual(self.store.phase, 'game')
+        self.podium('old-match')
+        self.assertIsNone(self.store.podium_due)
+        self.podium()
+        self.now = 42.9
         self.store.tick()
         self.assertEqual(self.store.phase, 'game')
         self.podium()
-        self.now = 7
+        self.now = 43
+        self.store.tick()
+        self.assertEqual(self.store.phase, 'victory0')
+        self.now = 47
         self.store.tick()
         self.assertEqual(self.store.phase, 'stats')
+        self.now = 57
+        self.store.tick()
+        self.assertEqual(self.store.phase, 'complete')
+        self.assertEqual(self.store.history, ['game', 'victory0', 'stats', 'complete'])
 
-    def test_early_podium_never_interrupts_victory(self):
+    def test_stats_disabled_keeps_mvp_then_full_victory(self):
+        self.store.stats_enabled = False
         self.end_auto(bestof=1)
         self.podium()
         self.now = 3
         self.store.tick()
         self.assertEqual(self.store.phase, 'victory0')
-        self.now = 4
+        self.now = 7
         self.store.tick()
-        self.assertEqual(self.store.phase, 'stats')
+        self.assertEqual(self.store.phase, 'complete')
 
     def test_manual_show_hide_reset_and_new_match_cancel_pending_stats(self):
         for action in (lambda: self.store.show_stats(), self.store.hide_stats,
@@ -104,8 +119,10 @@ class WorkflowTests(unittest.TestCase):
         self.end_auto(bestof=1)
         self.podium()
         self.store.hide_stats()
+        self.now = 3
+        self.store.tick()
         self.assertEqual(self.store.phase, 'victory0')
-        self.now = 4
+        self.now = 7
         self.store.tick()
         self.assertEqual(self.store.phase, 'complete')
 
@@ -114,6 +131,11 @@ class WorkflowTests(unittest.TestCase):
         self.now = 4
         self.store.tick()
         self.store.stats_enabled = False
+        self.podium()
+        self.now = 7
+        self.store.tick()
+        self.assertEqual(self.store.phase, 'victory0')
+        self.now = 11
         self.store.tick()
         self.assertEqual(self.store.phase, 'complete')
 
@@ -303,6 +325,26 @@ class DesktopIntegrationTests(unittest.TestCase):
         checkboxes = checks(self.app.marker.design_tabs)
         self.assertTrue(checkboxes)
         self.assertTrue(all(c['style'] == 'Marker.TCheckbutton' for c in checkboxes))
+
+    def test_new_marker_defaults_and_custom_tournament_logo_survive_apply(self):
+        from vendor.overlay.app import normalize_config
+        app = self.app
+        self.assertEqual(app.store.config['design'], 'rounded')
+        self.assertEqual(app.store.config['font'], 'Verdana')
+        self.assertFalse(app.store.config['show_brand'])
+        logo = Path(__file__).resolve().parents[1]/'vendor/overlay/assets/torneo.png'
+        with patch('marker.filedialog.askopenfilename', return_value=str(logo)):
+            app.marker.tournament_logo()
+        chosen = app.store.config['brand_logo']
+        self.assertTrue(chosen.startswith('data:image/png;base64,'))
+        self.assertTrue(app.marker.apply())
+        self.assertEqual(app.store.config['brand_logo'], chosen)
+        profile = json.loads(json.dumps(app.store.config))
+        self.assertEqual(normalize_config(profile)['brand_logo'], chosen)
+        legacy = normalize_config(dict(design='angular', font='Arial', show_brand=True))
+        self.assertEqual((legacy['design'], legacy['font'], legacy['show_brand']), ('angular', 'Arial', True))
+        app.marker.reset_tournament_logo()
+        self.assertEqual(app.store.config['brand_logo'], '')
 
     def test_marker_color_picker_preserves_animation_profile(self):
         profile = copy.deepcopy(self.app.profile)

@@ -236,6 +236,9 @@ def position_pre_names(scene):
 
 def configure(config, folder):
     remove_template_cars()
+    for obj in bpy.data.objects:
+        if obj.name.startswith('EMBLEMA | Sustituible'):
+            enable_object(obj, False)
     pre = bpy.data.scenes['01_PREPARTIDO_13s']
     cars = {}
     logo_materials = {}

@@ -133,6 +133,7 @@ class Studio(Store):
         self.scene_seconds = dict(pre=13, victory0=4, victory1=4)
         self.animation_order = [0, 1]
         self.history = []
+        self.pending_victory = None
         self.pending_stats = False
         self.podium_due = None
         self.podium_seen = False
@@ -168,6 +169,7 @@ class Studio(Store):
             raise ValueError('Escena desconocida.')
         with self.lock:
             if not preserve_pending:
+                self.pending_victory = None
                 self.pending_stats = False
                 self.podium_due = None
             self.phase = phase
@@ -192,6 +194,9 @@ class Studio(Store):
 
     def hide_stats(self):
         with self.lock:
+            if self.pending_victory:
+                self.stats_cancelled = True
+                return
             if self.pending_stats:
                 self.stats_cancelled = True
                 if self.phase == 'game':
@@ -229,6 +234,11 @@ class Studio(Store):
                     self.stats_or_next()
                 elif self.phase == 'stats':
                     self.transition(self.after_stats())
+
+            if (self.pending_victory and self.phase == 'game' and self.podium_due is not None
+                    and self.clock() >= self.podium_due):
+                phase = self.pending_victory
+                self.transition(phase, self.scene_seconds[phase])
 
             if (self.pending_stats and self.phase == 'game' and self.podium_due is not None
                     and self.clock() >= self.podium_due):
@@ -285,12 +295,13 @@ class Studio(Store):
                 return True
             if event == 'PodiumStart':
                 guid = data.get('MatchGuid')
-                if (self.pending_stats and not self.podium_seen and self.postmatch
+                if ((self.pending_stats or self.pending_victory) and not self.podium_seen and self.postmatch
                         and (not guid or self.postmatch['guid'] == str(guid))):
                     self.podium_seen = True
                     self.podium_due = self.clock() + 3
                 return True
             if event == 'MatchStarted':
+                self.pending_victory = None
                 if self.pending_stats:
                     self.stats_cancelled = True
                 self.pending_stats = False
@@ -305,6 +316,7 @@ class Studio(Store):
                 teams = g.get('Teams', []) if isinstance(g, dict) else []
                 if (data.get('Players') and g.get('TimeSeconds', 0) > 0 and len(teams) == 2
                         and all(t.get('Score') == 0 for t in teams)):
+                    self.pending_victory = None
                     if self.pending_stats:
                         self.stats_cancelled = True
                     self.pending_stats = False
@@ -347,13 +359,17 @@ class Studio(Store):
             if series['complete'] and not series['tied']:
                 leader = 0 if wins[0] > wins[1] else 1
                 phase = 'victory' + str(self.animation_order[leader])
-                self.transition(phase, self.scene_seconds[phase])
+                if automatic:
+                    self.transition('game')
+                    self.pending_victory = phase
+                else:
+                    self.transition(phase, self.scene_seconds[phase])
             else:
                 if automatic and self.stats_enabled:
                     self.transition('game')
                 else:
                     self.stats_or_next()
-            self.pending_stats = automatic and self.stats_enabled
+            self.pending_stats = automatic and self.stats_enabled and not self.pending_victory
             self.podium_due = None
             self.podium_seen = False
             return True
@@ -433,6 +449,7 @@ class Studio(Store):
             state['studio'] = dict(phase=self.phase, revision=self.revision, gameplay=self.gameplay,
                                    remaining=max(0, self.deadline-self.clock()) if self.deadline is not None else None,
                                    held=self.paused is not None, manual=self.manual_live,
-                                   waiting_podium=self.pending_stats and self.podium_due is None,
+                                   waiting_podium=bool(self.pending_stats or self.pending_victory) and self.podium_due is None,
+                                   pending_victory=self.pending_victory,
                                    podium_remaining=max(0, self.podium_due-self.clock()) if self.podium_due is not None else None)
             return state

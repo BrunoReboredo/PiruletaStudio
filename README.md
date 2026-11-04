@@ -4,7 +4,7 @@ Aplicación de escritorio para Windows que reúne Animaciones, Overlay y Estadí
 
 ## Abrir
 
-La actualización de esta entrega está en **portable/Piruleta Studio 0.6/Piruleta Studio.exe**. Las versiones anteriores se conservan en sus carpetas para no interrumpir trabajos en curso. Abre el ejecutable con doble clic y conserva `_internal` a su lado. No necesita Python instalado. Las compilaciones de desarrollo con `build.ps1` se crean en `portable/Piruleta Studio/`.
+La actualización de esta entrega está en **portable/Piruleta Studio 0.6.1/Piruleta Studio.exe**. Las versiones anteriores se conservan en sus carpetas para no interrumpir trabajos en curso. Abre el ejecutable con doble clic y conserva `_internal` a su lado. No necesita Python instalado. Las compilaciones de desarrollo con `build.ps1` se crean en `portable/Piruleta Studio/`.
 
 Para ejecutar el código fuente, con Python 3.11 o posterior (incluido Tkinter), abre **Abrir Piruleta Studio.cmd**. No necesita paquetes de pip. También puedes ejecutar `python app.py` desde esta carpeta.
 
@@ -138,7 +138,7 @@ Cámaras actualizadas: prepartido de 13 segundos (plano abierto → coche A → 
 
 ## Versión 0.5
 
-Las estadísticas automáticas esperan a `PodiumStart` y aparecen 3 segundos después, durante 10 segundos por defecto. La API oficial indica el inicio del podio, sin un evento específico que confirme cuándo termina la presentación del MVP. Si no llega el aviso del podio, se sigue viendo el juego y puedes mostrar las estadísticas desde el panel. En el último partido la animación de victoria comienza inmediatamente; las estadísticas esperan tanto al final de la animación como al aviso del podio más 3 segundos. Los botones manuales permiten anticipar o cancelar la aparición.
+Las estadísticas automáticas esperan a `PodiumStart` y aparecen 3 segundos después, durante 10 segundos por defecto. La API oficial indica el inicio del podio, sin un evento específico que confirme cuándo termina la presentación del MVP. Si no llega el aviso del podio, se sigue viendo el juego y puedes mostrar las estadísticas desde el panel. En el último partido, el orden es podio/MVP → victoria → estadísticas: la victoria comienza 3 segundos después del aviso del podio y las estadísticas esperan al final de la animación. Los botones manuales permiten anticipar o cancelar la aparición.
 
 La URL del programa aplica fundidos a negro de 800 ms al entrar y salir de estadísticas, prepartido y victorias (300 ms hasta negro, 200 ms manteniendo el negro y 300 ms para revelar la siguiente escena). Con la conexión opcional de OBS, las escenas comparten esa fuente y sus cambios son inmediatos para evitar aplicar otra transición encima.
 
@@ -153,3 +153,11 @@ Al terminar la última pantalla de estadísticas de la serie, el panel indica el
 El prepartido sitúa los nombres blancos entre los logos y los coches, sin paneles de fondo. Debes preparar nuevos vídeos para ver la nueva composición (los anteriores siguen pudiendo cargarse manualmente). Las tomas de cámara y la duración se conservan.
 
 El programa reproduce un fragmento de 8 segundos de arranque de motor al comenzar el vídeo de prepartido, a volumen moderado, y lo detiene si se cambia de escena. Funciona también con vídeos manuales: el sonido lo añade la fuente del programa, no está incrustado en el MP4. En OBS el audio sale por la fuente de navegador: comprueba que su canal no esté silenciado. Autor: Joseph Sardin / BigSoundBank, CC0. Procedencia y adaptación en `vendor/audio/CREDITOS.txt` y en `_internal/vendor/audio/CREDITOS.txt` de la versión portable.
+
+## Versión 0.6.1
+
+Las nuevas series usan marcador rounded, tipografía Verdana y marca del torneo oculta. Puedes volver a mostrarla en Marcador → Elementos. En Marcador → Textos, Logo del torneo permite elegir un PNG/JPG de hasta 4 MB o restablecer el logo de Piruleta. Se guarda al guardar el perfil del marcador; cargar perfiles existentes conserva sus ajustes explícitos.
+
+La generación de Blender elimina los discos de fondo detrás de los escudos y conserva los logos. Prepara nuevos vídeos para aplicar este cambio; los vídeos ya renderizados no se modifican.
+
+En la 0.6.1 el último partido automático sigue el orden podio/MVP → victoria → estadísticas. La victoria espera al aviso PodiumStart más 3 segundos, se reproduce completa y después aparecen las estadísticas. Si las estadísticas están desactivadas se mantiene el MVP y la victoria, y después termina la serie. Los botones manuales siguen permitiendo adelantar las escenas.

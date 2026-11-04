@@ -90,6 +90,11 @@ class MarkerPanel(OverlayApp):
         self.css.pack(fill='both', expand=True, pady=8)
         self.css.insert('1.0', self.store.config['custom_css'])
         self.entry(teams, 'Nombre del torneo', 'event')
+        brandrow = ttk.Frame(teams)
+        brandrow.pack(fill='x', pady=7)
+        ttk.Label(brandrow, text='Logo del torneo', width=20).pack(side='left')
+        ttk.Button(brandrow, text='Elegir logo…', command=self.tournament_logo).pack(side='left')
+        ttk.Button(brandrow, text='Restablecer', command=self.reset_tournament_logo).pack(side='left', padx=6)
         self.entry(teams, 'Fase / ronda', 'round')
         self.entry(teams, 'Partido de la serie', 'game', numeric=(1, 99))
         for i in range(2):
@@ -191,6 +196,32 @@ class MarkerPanel(OverlayApp):
                 self.owner.note.set('Perfil de marcador cargado. No modifica los vídeos preparados.')
             except (OSError, ValueError, TypeError, AttributeError, KeyError) as exc:
                 messagebox.showerror('No se pudo cargar el marcador', str(exc), parent=self.root)
+
+    def tournament_logo(self):
+        path = filedialog.askopenfilename(title='Logo del torneo', filetypes=[('Logo PNG / JPG', '*.png *.jpg *.jpeg')])
+        if not path:
+            return
+        try:
+            import base64
+            content = Path(path).read_bytes()
+            if len(content) > 4_000_000:
+                raise ValueError('El logo debe ocupar menos de 4 MB.')
+            if content.startswith(b'\x89PNG\r\n\x1a\n'):
+                mime = 'image/png'
+            elif content.startswith(b'\xff\xd8\xff'):
+                mime = 'image/jpeg'
+            else:
+                raise ValueError('Selecciona un logo PNG o JPG válido.')
+            with self.store.lock:
+                self.store.config['brand_logo'] = 'data:'+mime+';base64,'+base64.b64encode(content).decode()
+            self.owner.note.set('Logo del torneo actualizado. Para mostrarlo, activa Marca del torneo en Elementos.')
+        except (OSError, ValueError) as exc:
+            self.owner.error(exc)
+
+    def reset_tournament_logo(self):
+        with self.store.lock:
+            self.store.config['brand_logo'] = ''
+        self.owner.note.set('Logo del torneo restablecido al de Piruleta.')
 
     def reconnect(self):
         try:

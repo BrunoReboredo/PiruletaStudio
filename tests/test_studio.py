@@ -48,13 +48,15 @@ class FlowTests(unittest.TestCase):
         self.assertEqual(self.s.phase, 'game')
         self.packet('MatchStarted')
         self.packet('MatchEnded', WinnerTeamNum=1, MatchGuid='two')
-        self.assertEqual(self.s.phase, 'victory1')
+        self.assertEqual(self.s.phase, 'game')
         self.packet('PodiumStart', MatchGuid='two')
+        self.advance(3)
+        self.assertEqual(self.s.phase, 'victory1')
         self.advance(4)
         self.assertEqual(self.s.phase, 'stats')
         self.advance(10)
         self.assertEqual(self.s.phase, 'complete')
-        self.assertEqual(self.s.history, ['pre', 'game', 'game', 'stats', 'game', 'victory1', 'stats', 'complete'])
+        self.assertEqual(self.s.history, ['pre', 'game', 'game', 'stats', 'game', 'game', 'victory1', 'stats', 'complete'])
 
     def test_duplicate_end_does_not_restart_timer(self):
         self.packet('MatchEnded', WinnerTeamNum=0, MatchGuid='one')
@@ -73,6 +75,9 @@ class FlowTests(unittest.TestCase):
         self.assertEqual(self.s.config['teams'][0]['wins'], 1)
         self.packet('MatchStarted')
         self.packet('MatchEnded', WinnerTeamNum=0)
+        self.assertEqual(self.s.phase, 'game')
+        self.packet('PodiumStart')
+        self.advance(3)
         self.assertEqual(self.s.phase, 'victory0')
 
     def test_early_kickoff_preserves_result_and_timer(self):

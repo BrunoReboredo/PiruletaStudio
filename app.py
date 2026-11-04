@@ -612,7 +612,8 @@ class App:
         if s['waiting_podium'] and s['phase'] == 'game':
             suffix = ' · esperando al podio / MVP'
         elif s['podium_remaining'] is not None and s['phase'] == 'game':
-            suffix = f' · estadísticas en {math.ceil(s["podium_remaining"])} s'
+            next_scene = 'victoria' if s['pending_victory'] else 'estadísticas'
+            suffix = f' · {next_scene} en {math.ceil(s["podium_remaining"])} s'
         self.phase.set(('Serie preparada · pendiente de inicio' if not self.store.armed and self.profile else LABELS[s['phase']])+suffix)
         self.status.set(state['connection']['status']+'   |   '+self.url+'/program'+('   |   Corrección manual activa' if s['manual'] else ''))
         while True:
