@@ -4,7 +4,7 @@ Aplicación de escritorio para Windows que reúne Animaciones, Overlay y Estadí
 
 ## Abrir
 
-La actualización de esta entrega está en **portable/Piruleta Studio 0.4/Piruleta Studio.exe**. Las versiones anteriores se conservan en sus carpetas para no interrumpir trabajos en curso. Abre el ejecutable con doble clic y conserva `_internal` a su lado. No necesita Python instalado. Las compilaciones de desarrollo con `build.ps1` se crean en `portable/Piruleta Studio/`.
+La actualización de esta entrega está en **portable/Piruleta Studio 0.5/Piruleta Studio.exe**. Las versiones anteriores se conservan en sus carpetas para no interrumpir trabajos en curso. Abre el ejecutable con doble clic y conserva `_internal` a su lado. No necesita Python instalado. Las compilaciones de desarrollo con `build.ps1` se crean en `portable/Piruleta Studio/`.
 
 Para ejecutar el código fuente, con Python 3.11 o posterior (incluido Tkinter), abre **Abrir Piruleta Studio.cmd**. No necesita paquetes de pip. También puedes ejecutar `python app.py` desde esta carpeta.
 
@@ -135,3 +135,11 @@ La prueba opcional `python -B tests/smoke_blender.py` comprueba con Blender real
 
 Cámaras actualizadas: prepartido de 13 segundos (plano abierto → coche A → giro rápido al coche B → centro → plano inicial); victoria de 4 segundos con giro lateral más amplio. Para ver el nuevo recorrido, genera de nuevo los vídeos. Los MP4 ya exportados conservan su animación. El identificador interno 02_VICTORIA_2s se mantiene por compatibilidad; su duración real es de 4 segundos.
 
+
+## Versión 0.5
+
+Las estadísticas automáticas esperan a `PodiumStart` y aparecen 3 segundos después, durante 10 segundos por defecto. La API oficial indica el inicio del podio, sin un evento específico que confirme cuándo termina la presentación del MVP. Si no llega el aviso del podio, se sigue viendo el juego y puedes mostrar las estadísticas desde el panel. En el último partido la animación de victoria comienza inmediatamente; las estadísticas esperan tanto al final de la animación como al aviso del podio más 3 segundos. Los botones manuales permiten anticipar o cancelar la aparición.
+
+La URL del programa aplica fundidos a negro de 800 ms al entrar y salir de estadísticas, prepartido y victorias (300 ms hasta negro, 200 ms manteniendo el negro y 300 ms para revelar la siguiente escena). Con la conexión opcional de OBS, las escenas comparten esa fuente y sus cambios son inmediatos para evitar aplicar otra transición encima.
+
+En Marcador → Diseño puedes cambiar los colores de ambos equipos, del fondo y del texto. Las estadísticas usan la paleta actual del marcador, incluso para resultados ya guardados. Estos cambios no modifican los datos de serie ni invalidan los vídeos preparados: las animaciones conservan los colores elegidos en Datos de serie.

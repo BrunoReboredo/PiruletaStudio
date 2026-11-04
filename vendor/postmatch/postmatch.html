@@ -37,7 +37,7 @@ function stat(p,k){const v=p?.[k];return v!==null&&v!==undefined&&Number.isFinit
 let last='';
 function render(s){const result=s.postmatch;if(!result){stage.classList.add('hidden');last='';return}
  const key=JSON.stringify([result,s.config.colors,s.config.font,s.config.design,s.config.opacity,s.config.custom_css]);if(last===key)return;last=key;
- const c=result.config,m=result.match,theme=c;for(const [k,v] of Object.entries(theme.colors))stage.style.setProperty('--'+k,v);stage.style.color=theme.colors.text;stage.style.fontFamily=theme.font;stage.style.opacity=theme.opacity/100;stage.className=theme.design;$('customstyle').textContent=theme.custom_css||'';
+ const c=result.config,m=result.match,theme=s.config;for(const [k,v] of Object.entries(theme.colors))stage.style.setProperty('--'+k,v);stage.style.color=theme.colors.text;stage.style.fontFamily=theme.font;stage.style.opacity=theme.opacity/100;stage.className=theme.design;$('customstyle').textContent=theme.custom_css||'';
  $('event').textContent=c.event;$('round').textContent=c.round;$('game').textContent=`PARTIDO ${c.game} · BO${c.bestof}`;
  for(let t=0;t<2;t++){$('name'+t).textContent=c.teams[t].name;$('score'+t).textContent=m.scores[t];$('status'+t).textContent=result.winner===t?'VICTORIA':'EQUIPO '+(t+1);const logo=$('logo'+t);logo.src=c.teams[t].logo||'/assets/torneo.png';logo.classList.toggle('hidden',!c.show_logos)}
  const wins=result.wins||c.teams.map(t=>t.wins),tied=wins[0]===wins[1],leader=wins[0]>wins[1]?0:1,complete=Math.max(...wins)>=Math.floor(c.bestof/2)+1||wins[0]+wins[1]>=c.bestof;

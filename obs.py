@@ -144,12 +144,12 @@ class OBS:
             items = self.request('GetSceneItemList', sceneName=scene)['sceneItems']
             if not any(item['sourceName'] == SOURCE for item in items):
                 self.request('CreateSceneItem', sceneName=scene, sourceName=SOURCE, sceneItemEnabled=True)
-        # This changes only the two Piruleta victory scenes, so series wins cut immediately.
+        # The shared browser handles the 300 ms fade; avoid a second OBS fade.
         transitions = self.request('GetSceneTransitionList')['transitions']
         cut = next((t['transitionName'] for t in transitions if t.get('transitionKind') == 'cut_transition'), None)
         if cut:
-            for phase in ('victory0', 'victory1'):
-                self.request('SetSceneSceneTransitionOverride', sceneName=SCENES[phase], transitionName=cut)
+            for scene in SCENES.values():
+                self.request('SetSceneSceneTransitionOverride', sceneName=scene, transitionName=cut)
 
     def switch(self, phase):
         self.request('SetCurrentProgramScene', sceneName=SCENES[phase])

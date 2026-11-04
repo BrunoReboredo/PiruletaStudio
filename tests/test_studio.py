@@ -29,7 +29,11 @@ class FlowTests(unittest.TestCase):
         self.s.tick()
 
     def packet(self, event, **data):
-        return self.s.ingest(dict(Event=event, Data=data))
+        accepted = self.s.ingest(dict(Event=event, Data=data))
+        if event == 'MatchEnded' and self.s.pending_stats and self.s.phase == 'game':
+            self.s.ingest(dict(Event='PodiumStart', Data={'MatchGuid': data.get('MatchGuid')}))
+            self.advance(3)
+        return accepted
 
     def test_entire_series(self):
         self.s.start()
@@ -45,11 +49,12 @@ class FlowTests(unittest.TestCase):
         self.packet('MatchStarted')
         self.packet('MatchEnded', WinnerTeamNum=1, MatchGuid='two')
         self.assertEqual(self.s.phase, 'victory1')
+        self.packet('PodiumStart', MatchGuid='two')
         self.advance(4)
         self.assertEqual(self.s.phase, 'stats')
         self.advance(10)
         self.assertEqual(self.s.phase, 'complete')
-        self.assertEqual(self.s.history, ['pre', 'game', 'stats', 'game', 'victory1', 'stats', 'complete'])
+        self.assertEqual(self.s.history, ['pre', 'game', 'game', 'stats', 'game', 'victory1', 'stats', 'complete'])
 
     def test_duplicate_end_does_not_restart_timer(self):
         self.packet('MatchEnded', WinnerTeamNum=0, MatchGuid='one')
@@ -127,6 +132,9 @@ class FlowTests(unittest.TestCase):
 
     def test_json_text_data_and_bad_packet(self):
         self.s.ingest(dict(Event='MatchEnded', Data=json.dumps(dict(WinnerTeamNum=0, MatchGuid='one'))))
+        self.assertEqual(self.s.phase, 'game')
+        self.packet('PodiumStart', MatchGuid='one')
+        self.advance(3)
         self.assertEqual(self.s.phase, 'stats')
         self.assertFalse(self.s.ingest(dict(Event='UpdateState', Data='bad')))
 

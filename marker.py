@@ -85,6 +85,8 @@ class MarkerPanel(OverlayApp):
             ttk.Button(row, text='Quitar', command=lambda i=i: self.clear_logo(i)).pack(side='left')
         ttk.Button(teams, text='Cambiar equipos de lado', style='Control.TButton',
                    command=self.swap_teams).pack(anchor='e', pady=(6, 0))
+        ttk.Label(design, text='Colores del marcador y las estadísticas. Las animaciones conservan los colores de Datos de serie.',
+                  wraplength=500, foreground='#b6a4c3').pack(anchor='w', pady=(0, 10))
         colorrow = ttk.Frame(design)
         colorrow.pack(fill='x', pady=5)
         for key, title in [('pink', 'Equipo A'), ('coral', 'Coral'), ('yellow', 'Equipo B'), ('dark', 'Fondo'), ('text', 'Texto')]:

@@ -1,17 +1,51 @@
 <!doctype html><html lang="es"><meta charset="utf-8"><title>Piruleta Studio · Programa</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:transparent;overflow:hidden;font-family:Arial;color:white}iframe,video,#end{position:absolute;width:100vw;height:100vh;inset:0;border:0;visibility:hidden}video{object-fit:contain;background:#11131d}#end{background:radial-gradient(ellipse at top,#432343,#14111e);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:30px}small{letter-spacing:8px;color:#ffcb61}h1{font-size:5vw;margin:0}#score{font-size:8vw;font-weight:bold}img{width:12vw;height:12vw;object-fit:contain}.teams{display:flex;align-items:center;gap:6vw}#error{display:none;position:fixed;bottom:16px;left:16px;background:#8a1530;padding:12px}
+*{box-sizing:border-box}body{margin:0;background:transparent;overflow:hidden;font-family:Arial;color:white}iframe,video,#end{position:absolute;width:100vw;height:100vh;inset:0;border:0;visibility:hidden;opacity:0;pointer-events:none}#end.active,.active{visibility:visible!important;opacity:1;z-index:2}#fade{position:fixed;inset:0;background:#000;opacity:0;z-index:100;pointer-events:none}video{object-fit:contain;background:#11131d}#end{background:radial-gradient(ellipse at top,#432343,#14111e);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:30px}small{letter-spacing:8px;color:#ffcb61}h1{font-size:5vw;margin:0}#score{font-size:8vw;font-weight:bold}img{width:12vw;height:12vw;object-fit:contain}.teams{display:flex;align-items:center;gap:6vw}#error{display:none;position:fixed;bottom:16px;left:16px;background:#8a1530;padding:12px}
 </style>
 <style>#stats{background:#14111e}</style>
 <iframe id="game" src="/overlay" title="Marcador"></iframe><iframe id="stats" src="/postmatch" title="Estadísticas"></iframe>
 <video id="pre" muted playsinline preload="auto"></video><video id="victory0" muted playsinline preload="auto"></video><video id="victory1" muted playsinline preload="auto"></video>
 <div id="end"><small>PIRULETA STUDIO</small><div class="teams"><img id="logo0"><b id="score"></b><img id="logo1"></div><h1 id="title">PREPARANDO LA SERIE</h1><span id="names"></span></div><div id="error"></div>
+<div id="fade" aria-hidden="true"></div>
 <script>
 const $=id=>document.getElementById(id),ids=['game','stats','pre','victory0','victory1','end'];let revision=-1,phase='';
+let sceneChange=0,blackAnimation=null;
+async function showScene(p){
+ const target=p==='complete'?'end':p,change=++sceneChange,black=$('fade');
+ const from=Number(getComputedStyle(black).opacity);
+ if(blackAnimation)blackAnimation.cancel();
+ try{
+  // Cover the complete browser source, including the transparent game overlay.
+  blackAnimation=black.animate([{opacity:from},{opacity:1}],
+   {duration:300,easing:'ease-in',fill:'both'});
+  await blackAnimation.finished;
+  if(change!==sceneChange)return;
+  black.style.opacity='1';blackAnimation.cancel();
+  blackAnimation=black.animate([{opacity:1},{opacity:1}],
+   {duration:200,fill:'both'});
+  await blackAnimation.finished;
+  if(change!==sceneChange)return;
+  blackAnimation.cancel();
+  // Swap only at full black; incoming videos start here, never behind the fade out.
+  for(const id of ids){
+   const el=$(id),active=id===target;
+   el.classList.toggle('active',active);el.style.zIndex=active?'2':'1';
+   if(el.tagName==='VIDEO'){
+    if(active){el.currentTime=0;el.play().catch(()=>{})}else el.pause();
+   }
+  }
+  blackAnimation=black.animate([{opacity:1},{opacity:0}],
+   {duration:300,easing:'ease-out',fill:'both'});
+  await blackAnimation.finished;
+  if(change!==sceneChange)return;
+  black.style.opacity='0';blackAnimation.cancel();blackAnimation=null;
+ }catch(e){/* A newer scene replaces this transition without applying stale callbacks. */}
+}
+
 async function poll(){try{const r=await fetch('/state',{cache:'no-store'});if(!r.ok)throw Error('Sin conexión');const s=await r.json();
 for(const [id,url] of Object.entries(s.media)){const v=$(id);if(v.dataset.url!==url){v.dataset.url=url;v.src=url;v.load()}}
-const p=s.studio.phase;for(const id of ids)$(id).style.visibility=(id===(p==='complete'?'end':p))?'visible':'hidden';
-if(revision!==s.studio.revision){for(const id of ['pre','victory0','victory1']){const v=$(id);if(id===p){v.currentTime=0;v.play().catch(()=>{})}else v.pause()}revision=s.studio.revision;phase=p}
+const p=s.studio.phase;
+if(revision!==s.studio.revision){showScene(p);revision=s.studio.revision;phase=p}
 // Hold keeps the final frame on screen; extending a scene does not restart its animation.
 const c=s.config,w=c.teams.map(t=>t.wins);$('score').textContent=w.join(' — ');$('title').textContent=s.series.complete?(s.series.tied?'SERIE EMPATADA':c.teams[w[0]>w[1]?0:1].name+' GANA LA SERIE'):'SERIE PREPARADA';$('names').textContent=c.teams.map(t=>t.name).join('  /  ');for(let i=0;i<2;i++)$('logo'+i).src=c.teams[i].logo||'/assets/torneo.png';$('error').style.display='none';
 }catch(e){$('error').textContent='Sin conexión con Piruleta Studio';$('error').style.display='block'}setTimeout(poll,50)}poll();

@@ -32,6 +32,91 @@ class WorkflowTests(unittest.TestCase):
         self.store = Studio(clock=lambda: self.now)
         self.store.armed = True
 
+    def end_auto(self, bestof=3):
+        self.store.config['bestof'] = bestof
+        self.store.ingest(dict(Event='MatchEnded', Data=dict(WinnerTeamNum=0, MatchGuid='result')))
+
+    def podium(self, guid='result'):
+        self.store.ingest(dict(Event='PodiumStart', Data=dict(MatchGuid=guid)))
+
+    def test_waits_for_podium_then_three_seconds_and_ignores_duplicates(self):
+        self.end_auto()
+        self.now = 40
+        self.store.tick()
+        self.assertEqual(self.store.phase, 'game')
+        self.podium('old-match')
+        self.assertIsNone(self.store.podium_due)
+        self.podium()
+        self.now = 42.9
+        self.podium()
+        self.store.tick()
+        self.assertEqual(self.store.phase, 'game')
+        self.now = 43
+        self.store.tick()
+        self.assertEqual(self.store.phase, 'stats')
+        self.assertEqual(self.store.deadline, 53)
+
+    def test_victory_waits_for_later_podium(self):
+        self.end_auto(bestof=1)
+        self.now = 4
+        self.store.tick()
+        self.assertEqual(self.store.phase, 'game')
+        self.podium()
+        self.now = 7
+        self.store.tick()
+        self.assertEqual(self.store.phase, 'stats')
+
+    def test_early_podium_never_interrupts_victory(self):
+        self.end_auto(bestof=1)
+        self.podium()
+        self.now = 3
+        self.store.tick()
+        self.assertEqual(self.store.phase, 'victory0')
+        self.now = 4
+        self.store.tick()
+        self.assertEqual(self.store.phase, 'stats')
+
+    def test_manual_show_hide_reset_and_new_match_cancel_pending_stats(self):
+        for action in (lambda: self.store.show_stats(), self.store.hide_stats,
+                       self.store.reset_series,
+                       lambda: self.store.ingest(dict(Event='MatchStarted', Data={}))):
+            self.store.reset_series()
+            self.end_auto()
+            self.podium()
+            action()
+            self.assertFalse(self.store.pending_stats)
+            self.now += 5
+            self.store.tick()
+        self.assertEqual(self.store.phase, 'game')
+
+    def test_new_kickoff_packet_cancels_old_podium_wait(self):
+        self.end_auto()
+        self.podium()
+        self.store.ingest(dict(Event='UpdateState', Data=dict(
+            Game=dict(TimeSeconds=300, Teams=[dict(Score=0, TeamNum=0), dict(Score=0, TeamNum=1)]),
+            Players=[dict(Name='New game', TeamNum=0)])))
+        self.now = 5
+        self.store.tick()
+        self.assertFalse(self.store.pending_stats)
+        self.assertEqual(self.store.phase, 'game')
+
+    def test_hide_pending_final_stats_keeps_victory_and_finishes_series(self):
+        self.end_auto(bestof=1)
+        self.podium()
+        self.store.hide_stats()
+        self.assertEqual(self.store.phase, 'victory0')
+        self.now = 4
+        self.store.tick()
+        self.assertEqual(self.store.phase, 'complete')
+
+    def test_disable_auto_while_waiting_does_not_leave_final_series_in_game(self):
+        self.end_auto(bestof=1)
+        self.now = 4
+        self.store.tick()
+        self.store.stats_enabled = False
+        self.store.tick()
+        self.assertEqual(self.store.phase, 'complete')
+
     def test_swapped_team_plays_its_original_prepared_victory(self):
         s = self.store
         s.config['bestof'] = 1
@@ -174,6 +259,15 @@ class DesktopIntegrationTests(unittest.TestCase):
         self.assertEqual(config['teams'][0]['short'], 'T0')
         self.connection.assert_called_once()
         self.connection.return_value.connect.assert_called_once()
+
+    def test_marker_color_picker_preserves_animation_profile(self):
+        profile = copy.deepcopy(self.app.profile)
+        before = clip_keys(profile, renderer_signature())
+        with patch('vendor.overlay.app.colorchooser.askcolor', return_value=((0, 255, 0), '#00ff00')):
+            self.app.marker.color('pink')
+        self.assertEqual(self.app.store.config['colors']['pink'], '#00ff00')
+        self.assertEqual(self.app.profile, profile)
+        self.assertEqual(clip_keys(self.app.profile, renderer_signature()), before)
 
     def test_user_videos_enable_start_and_use_their_duration(self):
         for key, seconds in [('pre', 22), ('victory0', 6), ('victory1', 8)]:

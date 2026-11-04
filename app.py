@@ -235,7 +235,7 @@ class App:
         ttk.Label(row, text='Duración predeterminada (segundos)').pack(side='left')
         ttk.Spinbox(row, from_=1, to=300, textvariable=self.stats_duration, width=7).pack(side='left', padx=10)
         ttk.Button(row, text='Aplicar', command=self.apply_stats_options).pack(side='left')
-        ttk.Label(box, text='Por defecto: 10 segundos después de cada partido. En el partido que decide la serie, '
+        ttk.Label(box, text='Por defecto: se muestran durante 10 segundos, 3 segundos después del inicio del podio / MVP. En el partido que decide la serie, '
                   'primero se reproduce la victoria completa y después aparecen las estadísticas.', wraplength=980).pack(anchor='w', pady=8)
         row = ttk.Frame(box)
         row.pack(fill='x', pady=10)
@@ -585,6 +585,10 @@ class App:
         self.stats_summary.set(('Último partido: '+result['config']['teams'][0]['name']+' '+str(result['match']['scores'][0])+' — '+str(result['match']['scores'][1])+' '+result['config']['teams'][1]['name']) if result else 'Esperando al primer partido finalizado.')
         s = state['studio']
         suffix = f' · {math.ceil(s["remaining"])} s' if s['remaining'] is not None else ' · temporizador pausado' if s['held'] else ''
+        if s['waiting_podium'] and s['phase'] == 'game':
+            suffix = ' · esperando al podio / MVP'
+        elif s['podium_remaining'] is not None and s['phase'] == 'game':
+            suffix = f' · estadísticas en {math.ceil(s["podium_remaining"])} s'
         self.phase.set(('Serie preparada · pendiente de inicio' if not self.store.armed and self.profile else LABELS[s['phase']])+suffix)
         self.status.set(state['connection']['status']+'   |   '+self.url+'/program'+('   |   Corrección manual activa' if s['manual'] else ''))
         while True:

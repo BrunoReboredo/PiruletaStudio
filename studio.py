@@ -132,6 +132,10 @@ class Studio(Store):
         self.scene_seconds = dict(pre=13, victory0=4, victory1=4)
         self.animation_order = [0, 1]
         self.history = []
+        self.pending_stats = False
+        self.podium_due = None
+        self.podium_seen = False
+        self.stats_cancelled = False
 
     def configure(self, profile):
         p = validate(profile)
@@ -157,10 +161,13 @@ class Studio(Store):
             self.generation += 1
             self.transition('complete')
 
-    def transition(self, phase, seconds=None):
+    def transition(self, phase, seconds=None, preserve_pending=False):
         if phase not in PHASES:
             raise ValueError('Escena desconocida.')
         with self.lock:
+            if not preserve_pending:
+                self.pending_stats = False
+                self.podium_due = None
             self.phase = phase
             self.deadline = self.clock() + seconds if seconds is not None else None
             self.paused = None
@@ -183,17 +190,36 @@ class Studio(Store):
 
     def hide_stats(self):
         with self.lock:
+            if self.pending_stats:
+                self.stats_cancelled = True
+                if self.phase == 'game':
+                    self.transition(self.after_stats())
+            self.pending_stats = False
+            self.podium_due = None
             if self.phase == 'stats':
                 self.transition(self.after_stats())
 
     def stats_or_next(self):
-        if self.stats_enabled:
+        if self.stats_cancelled:
+            self.transition(self.after_stats())
+        elif self.pending_stats and self.stats_enabled:
+            # Keep the game/podium visible until its own event plus three seconds.
+            if self.podium_due is not None and self.clock() >= self.podium_due:
+                self.transition('stats', self.stats_seconds)
+            else:
+                self.transition('game', preserve_pending=True)
+        elif self.stats_enabled:
             self.transition('stats', self.stats_seconds)
         else:
             self.transition(self.after_stats())
 
     def tick(self):
         with self.lock:
+            if self.pending_stats and not self.stats_enabled:
+                self.pending_stats = False
+                self.podium_due = None
+                if self.phase == 'game':
+                    self.transition(self.after_stats())
             if self.deadline is not None and self.clock() >= self.deadline:
                 if self.phase == 'pre':
                     self.transition('game')
@@ -201,6 +227,10 @@ class Studio(Store):
                     self.stats_or_next()
                 elif self.phase == 'stats':
                     self.transition(self.after_stats())
+
+            if (self.pending_stats and self.phase == 'game' and self.podium_due is not None
+                    and self.clock() >= self.podium_due):
+                self.transition('stats', self.stats_seconds)
 
     def duration(self, action):
         with self.lock:
@@ -240,7 +270,18 @@ class Studio(Store):
                 if self.armed:
                     self.finish(data.get('WinnerTeamNum'), data.get('MatchGuid'), automatic=True)
                 return True
+            if event == 'PodiumStart':
+                guid = data.get('MatchGuid')
+                if (self.pending_stats and not self.podium_seen and self.postmatch
+                        and (not guid or self.postmatch['guid'] == str(guid))):
+                    self.podium_seen = True
+                    self.podium_due = self.clock() + 3
+                return True
             if event == 'MatchStarted':
+                if self.pending_stats:
+                    self.stats_cancelled = True
+                self.pending_stats = False
+                self.podium_due = None
                 self.result_latched = False
                 self.match_number += 1
                 self.manual_live = False
@@ -251,6 +292,10 @@ class Studio(Store):
                 teams = g.get('Teams', []) if isinstance(g, dict) else []
                 if (data.get('Players') and g.get('TimeSeconds', 0) > 0 and len(teams) == 2
                         and all(t.get('Score') == 0 for t in teams)):
+                    if self.pending_stats:
+                        self.stats_cancelled = True
+                    self.pending_stats = False
+                    self.podium_due = None
                     self.result_latched = False
                     self.match_number += 1
                     self.manual_live = False
@@ -275,6 +320,7 @@ class Studio(Store):
                 return False
             self.finished.add(key)
             self.result_latched = True
+            self.stats_cancelled = False
             config = copy.deepcopy(self.config)
             if not automatic or self.config['auto_series']:
                 self.config['teams'][winner]['wins'] += 1
@@ -289,7 +335,13 @@ class Studio(Store):
                 phase = 'victory' + str(self.animation_order[leader])
                 self.transition(phase, self.scene_seconds[phase])
             else:
-                self.stats_or_next()
+                if automatic and self.stats_enabled:
+                    self.transition('game')
+                else:
+                    self.stats_or_next()
+            self.pending_stats = automatic and self.stats_enabled
+            self.podium_due = None
+            self.podium_seen = False
             return True
 
     def swap_marker_sides(self):
@@ -366,5 +418,7 @@ class Studio(Store):
             state = super().snapshot()
             state['studio'] = dict(phase=self.phase, revision=self.revision,
                                    remaining=max(0, self.deadline-self.clock()) if self.deadline is not None else None,
-                                   held=self.paused is not None, manual=self.manual_live)
+                                   held=self.paused is not None, manual=self.manual_live,
+                                   waiting_podium=self.pending_stats and self.podium_due is None,
+                                   podium_remaining=max(0, self.podium_due-self.clock()) if self.podium_due is not None else None)
             return state
