@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+data/*
+!data/.gitkeep
+.venv/
+portable/
+build/
+*.spec
+inicio.log

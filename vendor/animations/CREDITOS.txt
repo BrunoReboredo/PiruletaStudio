@@ -1,0 +1,15 @@
+MODELOS INCORPORADOS - ATRIBUCION
+Octane | Rocket League, por Víctor Hernández (victorhugohc)
+https://sketchfab.com/3d-models/octane-rocket-league-8c1bec6e9c1448a58a5007b1f21c8d21
+Fennec - Rocket League Car, por Jako (fairlight51)
+https://sketchfab.com/3d-models/fennec-rocket-league-car-5b43b50b6eeb4a12a29671df3418f57a
+Ambos bajo Creative Commons Attribution 4.0: https://creativecommons.org/licenses/by/4.0/
+Cambios: escala, centrado y colocacion en escenario; materiales/UV del GLB conservados.
+
+Octane actual: Jako (fairlight51), CC BY 4.0
+https://sketchfab.com/3d-models/octane-rocket-league-car-9910f0a5d158425bbc7deb60c7a81f69
+
+Dominus - Rocket League Car, por Jako (fairlight51), CC BY 4.0
+https://sketchfab.com/3d-models/dominus-rocket-league-car-f592f249a65f41cd81a0e5aa3d418cb2
+https://creativecommons.org/licenses/by/4.0/
+Uso en la app: escala y orientación ajustadas; pintura editable o calcomanías sobre UV originales.
