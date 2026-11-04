@@ -161,3 +161,5 @@ Las nuevas series usan marcador rounded, tipografía Verdana y marca del torneo 
 La generación de Blender elimina los discos de fondo detrás de los escudos y conserva los logos. Prepara nuevos vídeos para aplicar este cambio; los vídeos ya renderizados no se modifican.
 
 En la 0.6.1 el último partido automático sigue el orden podio/MVP → victoria → estadísticas. La victoria espera al aviso PodiumStart más 3 segundos, se reproduce completa y después aparecen las estadísticas. Si las estadísticas están desactivadas se mantiene el MVP y la victoria, y después termina la serie. Los botones manuales siguen permitiendo adelantar las escenas.
+
+La ventana y el ejecutable usan el icono de la piruleta del logo; el icono multirresolución está en `vendor/branding/piruleta.ico`.

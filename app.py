@@ -22,6 +22,9 @@ from marker import MarkerPanel, install_check_style
 from media import imported_manifest, mp4_duration
 
 ROOT = Path(__file__).resolve().parent
+if os.name == 'nt':
+    import ctypes
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('PiruletaStudio.Desktop')
 DATA = (Path(sys.executable).resolve().parent if getattr(sys, 'frozen', False) else ROOT)/'data'
 LIBRARY = Path(os.environ.get('LOCALAPPDATA', str(Path.home())))/'Piruleta Studio'/'Biblioteca'
 LABELS = dict(pre='Prepartido', game='Partido', stats='Estadísticas',
@@ -34,6 +37,10 @@ class App:
         self.library = Library(library_dir or LIBRARY)
         self.profile_fingerprints = set()
         root.title('Piruleta Studio · Control de retransmisión')
+        self.icon_image = tk.PhotoImage(master=root, file=str(ROOT/'vendor/branding/piruleta.png'))
+        root.iconphoto(True, self.icon_image)
+        if os.name == 'nt':
+            root.iconbitmap(default=str(ROOT/'vendor/branding/piruleta.ico'))
         root.geometry('1190x880')
         root.minsize(1000, 760)
         root.configure(bg='#14121e')
