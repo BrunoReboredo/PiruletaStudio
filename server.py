@@ -3,6 +3,7 @@ import mimetypes
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
+from vendor.postmatch.basic_metrics import CATALOG
 from vendor.overlay.app import preview_snapshot
 
 ROOT = Path(__file__).resolve().parent
@@ -18,10 +19,10 @@ def make_server(store, media, port=18767):
 
         def do_GET(self, head=False):
             route = urlsplit(self.path).path
-            if route in ('/state', '/preview-state'):
+            if route in ('/state', '/preview-state', '/metrics'):
                 state = preview_snapshot(store) if route == '/preview-state' else store.snapshot()
                 state['media'] = {key: '/media/'+key+'?v='+media.get('version', media['fingerprint']) for key in media.get('files', {})}
-                data = json.dumps(state, ensure_ascii=False).encode()
+                data = json.dumps(CATALOG if route == '/metrics' else state, ensure_ascii=False).encode()
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
                 self.send_header('Cache-Control', 'no-store')

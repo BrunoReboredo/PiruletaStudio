@@ -9,10 +9,11 @@ import shutil
 import time
 import uuid
 from studio import fingerprint
+import field
 from library import Library, atomic_json, clip_keys, file_hash
 
 ROOT = Path(__file__).resolve().parent
-NAMES = dict(pre='Prepartido', victory0='Victoria_A', victory1='Victoria_B')
+NAMES = dict(field='Campo', pre='Prepartido', victory0='Victoria_A', victory1='Victoria_B')
 
 
 def renderer_signature():
@@ -24,7 +25,7 @@ def renderer_signature():
 
 def cached_clips(profile, library_dir):
     library = Library(library_dir)
-    keys = clip_keys(profile, renderer_signature())
+    keys = clip_keys(profile, renderer_signature(), field.signature())
     return {key: library.clip(value) for key, value in keys.items()}
 
 
@@ -55,16 +56,16 @@ def prepare(profile, destination, report, cancelled, library_dir=None):
     library = Library(library_dir or Path(destination)/'biblioteca')
     signature = fingerprint(profile)
     profile = library.import_profile(profile)
-    keys = clip_keys(profile, renderer_signature())
+    keys = clip_keys(profile, renderer_signature(), field.signature())
     clips = {key: library.clip(value) for key, value in keys.items()}
     missing = [key for key, clip in clips.items() if clip is None]
     blender = Path(profile['blender'])
-    if missing and not blender.is_file():
+    if any(key != 'field' for key in missing) and not blender.is_file():
         raise ValueError('Faltan vídeos en la biblioteca. Selecciona Blender para generar solo los que faltan.')
     output = Path(destination)/(time.strftime('%Y%m%d-%H%M%S')+'-'+uuid.uuid4().hex[:8])
     output.mkdir(parents=True)
     reused = []
-    for key in ('pre', 'victory0', 'victory1'):
+    for key in ('field','pre', 'victory0', 'victory1'):
         if cancelled.is_set():
             raise RuntimeError('Preparación cancelada. Los vídeos completos se conservan en la biblioteca.')
         if clips[key] is not None:
@@ -73,6 +74,11 @@ def prepare(profile, destination, report, cancelled, library_dir=None):
             continue
         folder = output/('trabajo_'+key)
         folder.mkdir()
+        if key == 'field':
+            report('Generando Campo · exportación rápida')
+            video = field.render(profile, folder, report, cancelled)
+            clips[key] = library.save_clip(keys[key], video, dict(engine='fast',kind='Campo'))
+            continue
         if key == 'pre':
             teams = {letter: copy.deepcopy(team) for letter, team in zip(('A', 'B'), profile['teams'])}
             scene = 'Prepartido'

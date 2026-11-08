@@ -9,6 +9,7 @@ import tkinter as tk
 from tkinter import ttk, colorchooser, filedialog, messagebox
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import webbrowser
+from .boost_usage import BoostUsage
 
 ROOT = Path(__file__).resolve().parent
 APP_VERSION = '0.1.0'
@@ -41,71 +42,15 @@ def swap_team_sides(config):
     return swapped
 
 
-DEFAULT = {
-    'event': 'TORNEO PIRULETA', 'round': 'GRAN FINAL', 'game': 1, 'bestof': 5,
-    'teams': [{'name': 'PINK CANDY', 'logo': '', 'wins': 0},
-              {'name': 'GOLDEN POP', 'logo': '', 'wins': 0}],
-    'colors': {'pink': '#fa54b7', 'coral': '#ff8875', 'yellow': '#ffd14c',
-               'dark': '#181426', 'text': '#ffffff'},
-    'brand_logo': '',
-    'show_logos': True, 'show_players': True, 'show_stats': True,
-    'show_boost': True, 'show_brand': False, 'show_events': True,
-    'design': 'rounded', 'font': 'Verdana', 'scale': 100, 'opacity': 100,
-    'x': 360, 'y': 0, 'auto_series': True, 'custom_css': '', 'api_port': 49123,
-    'panel_colors': {'boost': 'dark', 'stats': 'dark', 'players0': 'dark', 'players1': 'dark'},
-    'panels': {'players0': [24, 180, 100], 'players1': [1601, 180, 100],
-               'focus': [36, 880, 100], 'boost': [1695, 860, 120],
-               'brand': [820, 154, 100], 'banner': [460, 370, 100]},
-}
-
-
-def normalize_config(raw):
-    """Validate profiles before they reach widgets or the overlay."""
-    if not isinstance(raw, dict):
-        raise ValueError('El perfil debe ser un objeto JSON.')
-    c = copy.deepcopy(DEFAULT)
-    for key in ('event', 'round', 'font'):
-        if key in raw:
-            c[key] = str(raw[key])[:120]
-    for key, lo, hi in [('game', 1, 99), ('bestof', 1, 15), ('scale', 50, 150),
-                        ('opacity', 10, 100), ('x', 0, 1900), ('y', 0, 1000), ('api_port', 1, 65535)]:
-        c[key] = max(lo, min(hi, int(raw.get(key, c[key]))))
-    if c['bestof'] not in SERIES_FORMATS:
-        raise ValueError('Elige BO1, BO2, BO3, BO4, BO5 o BO7.')
-    c['game'] = min(c['game'], c['bestof'])
-    for key in c:
-        if key.startswith('show_') or key == 'auto_series':
-            c[key] = bool(raw.get(key, c[key]))
-    if raw.get('design') in ('angular', 'rounded', 'classic'):
-        c['design'] = raw['design']
-    c['brand_logo'] = str(raw.get('brand_logo', ''))[:MAX_LOGO_DATA_URL_CHARS]
-    c['custom_css'] = str(raw.get('custom_css', ''))[:50000]
-    for key, value in raw.get('panel_colors', {}).items():
-        if key in c['panel_colors'] and value in c['colors']:
-            c['panel_colors'][key] = value
-    for key, values in raw.get('panels', {}).items():
-        if key in c['panels'] and isinstance(values, list) and len(values) == 3:
-            c['panels'][key] = [max(0, min(1920, int(values[0]))),
-                                max(0, min(1080, int(values[1]))),
-                                max(25, min(200, int(values[2])))]
-    for key, value in raw.get('colors', {}).items():
-        if key in c['colors'] and isinstance(value, str) and len(value) == 7:
-            int(value[1:], 16)
-            if value.startswith('#'):
-                c['colors'][key] = value
-    for i, team in enumerate(raw.get('teams', [])[:2]):
-        c['teams'][i] = {'name': str(team.get('name', 'EQUIPO'))[:80],
-                         'logo': str(team.get('logo', ''))[:MAX_LOGO_DATA_URL_CHARS],
-                         'wins': max(0, min(c['bestof']//2+1, int(team.get('wins', 0))))}
-    if sum(t['wins'] for t in c['teams']) > c['bestof']:
-        raise ValueError('Las victorias superan los partidos del formato. Reinicia la serie antes de cambiarlo.')
-    return c
+from vendor.overlay.app import DEFAULT, normalize_config, swap_team_sides
+from .basic_metrics import DEFAULT_METRICS, normalize_metrics
 
 
 class Store:
     def __init__(self):
         self.lock = threading.RLock()
         self.config = copy.deepcopy(DEFAULT)
+        self.config['metrics'] = list(DEFAULT_METRICS)
         self.match = {'scores': [0, 0], 'time': 300, 'overtime': False,
                       'players': [], 'target': '', 'banner': ''}
         self.status = 'Conexión automática · esperando Rocket League'
@@ -114,6 +59,8 @@ class Store:
         self.automatic = False
         self.last_update = 0
         self.postmatch = None
+        self.boost_usage = BoostUsage()
+        self.match_guid = None
 
     def snapshot(self):
         with self.lock:
@@ -151,6 +98,12 @@ class Store:
                         m['scores'][i] = max(0, int(t.get('Score', 0)))
                 m['time'] = int(g.get('TimeSeconds', m['time']))
                 m['overtime'] = bool(g.get('bOvertime', False))
+                guid = d.get('MatchGuid')
+                if (guid and guid != self.match_guid) or (self.postmatch and m['scores'] == [0, 0] and m['time'] > 0 and d.get('Players')):
+                    self.boost_usage.reset()
+                    self.postmatch = None
+                if guid:
+                    self.match_guid = guid
                 players = []
                 for player in d.get('Players', []):
                     if not isinstance(player, dict) or player.get('TeamNum') not in (0, 1):
@@ -162,6 +115,7 @@ class Store:
                             ('bHasCar', 'Speed', 'bBoosting', 'bOnGround', 'bOnWall', 'bDemolished')):
                         player['Boost'] = 0
                     players.append(player)
+                self.boost_usage.update(players, replay=bool(g.get('bReplay', False)))
                 m['players'] = players
                 m['target'] = (g.get('Target') or {}).get('Name', '')
                 # A new kickoff clears the previous result; menu/destruction packets do not.
@@ -172,10 +126,12 @@ class Store:
                 m['time'] = int(d.get('TimeSeconds', 0))
                 m['overtime'] = bool(d.get('bOvertime', False))
             elif event == 'GoalScored':
+                self.boost_usage.boundary(active=False)
                 # Goals update from UpdateState; no on-screen goal/scorer messages.
                 m['banner'] = ''
                 self.banner_until = 0
             elif event == 'MatchEnded':
+                self.boost_usage.boundary(active=False)
                 winner, guid = d.get('WinnerTeamNum'), d.get('MatchGuid')
                 if winner in (0, 1):
                     new_result = not self.postmatch or (guid and self.postmatch['guid'] != guid)
@@ -194,9 +150,17 @@ class Store:
                             self.config['game'] = series_state(self.config)['game']
                     if new_result:
                         self.postmatch['wins'] = [team['wins'] for team in self.config['teams']]
-            elif event == 'MatchStarted':
+            elif event in ('MatchStarted', 'MatchCreated', 'MatchInitialized'):
                 self.postmatch = None
+                self.boost_usage.reset()
+                self.match_guid = d.get('MatchGuid')
+            elif event in ('CountdownBegin', 'RoundStarted', 'MatchUnpaused', 'GoalReplayEnd'):
+                self.boost_usage.boundary(active=event in ('RoundStarted', 'MatchUnpaused'))
+            elif event in ('MatchPaused', 'GoalReplayStart'):
+                self.boost_usage.boundary(active=False)
             elif event == 'MatchDestroyed':
+                self.boost_usage.reset()
+                self.match_guid = None
                 m['players'], m['target'] = [], ''
             else:
                 return False
@@ -292,7 +256,7 @@ def preview_snapshot(store):
     final['match']['scores'] = [3, 1]
     final['config']['game'] = 3
     for i, player in enumerate(final['match']['players']):
-        player.update(Goals=[2, 1, 0, 1, 0, 0][i],
+        player.update(BoostUsed=[1420, 1185, 1630, 1545, 1270, 1380][i], Goals=[2, 1, 0, 1, 0, 0][i],
                       Assists=[0, 1, 2, 0, 1, 0][i],
                       Shots=[5, 3, 2, 4, 2, 1][i], Saves=[1, 2, 0, 3, 1, 2][i])
     return snapshot

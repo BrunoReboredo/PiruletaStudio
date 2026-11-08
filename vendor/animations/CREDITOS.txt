@@ -13,3 +13,5 @@ Dominus - Rocket League Car, por Jako (fairlight51), CC BY 4.0
 https://sketchfab.com/3d-models/dominus-rocket-league-car-f592f249a65f41cd81a0e5aa3d418cb2
 https://creativecommons.org/licenses/by/4.0/
 Uso en la app: escala y orientación ajustadas; pintura editable o calcomanías sobre UV originales.
+
+Ajustes de esta versión: ruedas Dieci reutilizadas del Octane de Jako, con escala y posición adaptadas a Fennec y Dominus; faros emisivos y luces añadidos por modelo. Se conservan las atribuciones y licencia CC BY 4.0 de los modelos originales.

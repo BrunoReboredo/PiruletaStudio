@@ -24,6 +24,15 @@ body.preview{background:#100e18}.sheet{position:absolute;inset:90px 100px 90px;b
 .row{height:auto;font-size:36px}
 .label{font-size:17px}
 .foot{position:static;height:74px;flex-shrink:0}
+
+#rows.compact{display:flex;flex-direction:column;justify-content:center}
+#rows.compact .row{height:96px;flex-shrink:0}
+.label small{display:block;font-size:10px;letter-spacing:1px;margin-top:6px;opacity:.7}
+.value{position:relative;margin:0 14px;padding:10px 8px;overflow:hidden}
+.value span{position:relative;z-index:1}
+.player-fill{position:absolute;left:0;top:0;bottom:0;background:var(--pink);opacity:.2;border-left:3px solid var(--pink)}
+.player-fill.right{background:var(--yellow);border-color:var(--yellow)}
+.textvalue{font-size:15px;line-height:1.4;max-height:84px}
 @keyframes enter{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:translateY(0)}}@media(prefers-reduced-motion:reduce){.sheet{animation:none}}
 </style>
 <div id="stage" class="hidden"><section class="sheet"><div class="eyebrow"><span id="event"></span><span id="round"></span></div><header class="headline"><div class="team"><img id="logo0"><div class="identity"><small id="status0"></small><h1 id="name0"></h1></div><b class="score" id="score0"></b></div><div class="versus"><b>FINAL</b><span id="game"></span></div><div class="team right"><img id="logo1"><div class="identity"><small id="status1"></small><h1 id="name1"></h1></div><b class="score" id="score1"></b></div></header><div class="series"><span id="serieslabel"></span><em id="seriesvalue"></em></div><div class="table"><div id="names" class="grid names"></div><div id="rows"></div></div><footer class="foot"><span>ESTADÍSTICAS DEL PARTIDO</span><b id="footnote"></b><span id="preview"></span></footer></section></div><style id="customstyle"></style>
@@ -32,23 +41,34 @@ const $=id=>document.getElementById(id),stage=$('stage'),preview=new URLSearchPa
 if(preview)document.body.classList.add('preview');
 function resize(){const scale=Math.min(innerWidth/1920,innerHeight/1080);stage.style.width=innerWidth/scale+"px";stage.style.height=innerHeight/scale+"px";stage.style.transform=`scale(${scale})`}onresize=resize;resize();
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const metrics=[['Score','PUNTOS'],['Goals','GOLES'],['Assists','ASISTENCIAS'],['Shots','TIROS'],['Saves','SALVADAS'],['Demolitions','DEMOLICIONES']];
+let catalog=[]; const defaults=['Score','Goals','Assists','Shots','Saves','BoostUsed'];
 function stat(p,k){const v=p?.[k];return v!==null&&v!==undefined&&Number.isFinite(Number(v))?Math.max(0,Number(v)):null}
 let last='';
 function render(s){const result=s.postmatch;if(!result){stage.classList.add('hidden');last='';return}
- const key=JSON.stringify([result,s.config.colors,s.config.font,s.config.design,s.config.opacity,s.config.custom_css]);if(last===key)return;last=key;
+ const key=JSON.stringify([result,s.config,catalog]);if(last===key)return;last=key;
  const c=result.config,m=result.match,theme=s.config;for(const [k,v] of Object.entries(theme.colors))stage.style.setProperty('--'+k,v);stage.style.color=theme.colors.text;stage.style.fontFamily=theme.font;stage.style.opacity=theme.opacity/100;stage.className=theme.design;$('customstyle').textContent=theme.custom_css||'';
  $('event').textContent=c.event;$('round').textContent=c.round;$('game').textContent=`PARTIDO ${c.game} · BO${c.bestof}`;
  for(let t=0;t<2;t++){$('name'+t).textContent=c.teams[t].name;$('score'+t).textContent=m.scores[t];$('status'+t).textContent=result.winner===t?'VICTORIA':'EQUIPO '+(t+1);const logo=$('logo'+t);logo.src=c.teams[t].logo||'/assets/torneo.png';logo.classList.toggle('hidden',!c.show_logos)}
  const wins=result.wins||c.teams.map(t=>t.wins),tied=wins[0]===wins[1],leader=wins[0]>wins[1]?0:1,complete=Math.max(...wins)>=Math.floor(c.bestof/2)+1||wins[0]+wins[1]>=c.bestof;
  $('serieslabel').textContent=tied?(complete?'SERIE EMPATADA':'EMPATE EN LA SERIE'):`${c.teams[leader].name} ${complete?'GANA LA SERIE':'LIDERA LA SERIE'}`;$('seriesvalue').textContent=wins.join(' — ');
- const teams=[0,1].map(t=>m.players.filter(p=>p.TeamNum===t).sort((a,b)=>(a.Shortcut??0)-(b.Shortcut??0)).slice(0,3));teams.forEach(p=>{while(p.length<3)p.push(null)});
- const all=teams.flat(),scores=all.map(p=>stat(p,'Score')),max=Math.max(...scores.filter(v=>v!==null)),best=all.filter(p=>stat(p,'Score')===max).length===1&&max>0?all.find(p=>stat(p,'Score')===max):null;
- function cell(p,t){return `<div class="player ${t?'right':''} ${p&&p===best?'top':''}" title="${esc(p?.Name||'Sin jugador')}">${p&&p===best?'<span class="award">MAYOR PUNTUACIÓN</span>':''}${esc(p?.Name||'—')}</div>`}
+ const scope=s.config.stats_scope||'match', data=result.statistics?.[scope], shown=data?.[0]||m.players; const metrics=(s.config.metrics||defaults).map(k=>catalog.find(item=>item.key===k)).filter(Boolean); const teams=[0,1].map(t=>shown.filter(p=>p.TeamNum===t).sort((a,b)=>(a.Shortcut??0)-(b.Shortcut??0)).slice(0,3));teams.forEach(p=>{while(p.length<3)p.push(null)});
+ const all=teams.flat(),scores=all.map(p=>stat(p,'Score')),max=Math.max(...scores.filter(v=>v!==null)),bestScore=Math.max(...m.players.map(p=>stat(p,'Score')??0)), bestRaw=m.players.filter(p=>stat(p,'Score')===bestScore),best=bestScore>0&&bestRaw.length===1?all.find(p=>p.Name===bestRaw[0].Name&&p.TeamNum===bestRaw[0].TeamNum):null;
+ function cell(p,t){return `<div class="player ${t?'right':''} ${p&&p===best?'top':''}" title="${esc(p?.Name||'Sin jugador')}">${p&&p===best?'<span class="award">MVP</span>':''}${esc(p?.Name||'—')}</div>`}
  $('names').innerHTML=teams[0].map(p=>cell(p,0)).join('')+'<div class="label">JUGADORES</div>'+teams[1].map(p=>cell(p,1)).join('');
- $('rows').innerHTML=metrics.map(([k,label])=>{const values=teams.map(team=>team.map(p=>stat(p,k))),sums=values.map(v=>v.reduce((a,b)=>a+(b??0),0)),known=teams.every((team,t)=>team.filter(Boolean).length>0&&team.every((p,i)=>!p||values[t][i]!==null)),share=known&&sums[0]+sums[1]>0?100*sums[0]/(sums[0]+sums[1]):50;
- const cells=t=>values[t].map(v=>`<div class="value">${v??'—'}</div>`).join('');return `<div class="grid row">${cells(0)}<div class="label">${label}<div class="compare" style="--share:${share}%;${known?'':'visibility:hidden'}"><i></i><b></b></div></div>${cells(1)}</div>`}).join('');
- $('footnote').textContent='— = DATO NO DISPONIBLE';$('preview').textContent=preview?'VISTA PREVIA · DATOS DE EJEMPLO':'';
+
+ const mode=s.config.team_mode||'total',compact=metrics.length<6;
+ $('rows').classList.toggle('compact',compact);
+ function formatted(value,metric){if(value===null||value===undefined)return '—';if(typeof value==='string')return esc(value);if(metric.unit==='sí/no')return value>0?'SÍ':'NO';return Number(value.toFixed(1)).toLocaleString('es-ES')+(metric.unit==='%'?'%':'')}
+ $('rows').innerHTML=metrics.map(metric=>{const k=metric.key,values=teams.map(team=>team.map(p=>p?.[k]??null)),nums=values.flat().filter(v=>typeof v==='number'),peak=Math.max(0,...nums),raw=data?.[1]?.map(t=>t[k]??null)||values.map(v=>v.every(n=>n===null)?null:v.reduce((a,b)=>a+(typeof b==='number'?b:0),0));
+ let total=[...raw];const valid=total.every(v=>typeof v==='number'&&Number.isFinite(v));
+ if(valid){if(mode==='mean'&&metric.aggregate==='sum')total=total.map((v,t)=>v/Math.max(1,teams[t].filter(Boolean).length));else if(mode==='difference')total=[raw[0]-raw[1],raw[1]-raw[0]];else if(mode==='share')total=raw[0]+raw[1]>0?raw.map(v=>100*v/(raw[0]+raw[1])):[null,null]}
+ const known=valid&&raw.every(v=>v>=0),share=known&&raw[0]+raw[1]>0?100*raw[0]/(raw[0]+raw[1]):50;
+ const cells=t=>values[t].map(v=>`<div class="value ${typeof v==='string'?'textvalue':''}">${compact&&typeof v==='number'?`<i class="player-fill ${t?'right':''}" style="width:${peak>0?100*Math.max(0,v)/peak:0}%"></i>`:''}<span>${formatted(v,metric)}</span></div>`).join('');
+ const totals=metric.unit==='texto'?'':total.map(v=>formatted(v,mode==='share'?{...metric,unit:'%'}:metric)).join(' / ');
+ return `<div class="grid row">${cells(0)}<div class="label">${esc(metric.label.toUpperCase())}${metric.unit&& !['%','texto','sí/no','puesto'].includes(metric.unit)?`<small>${esc(metric.unit)}</small>`:''}<div class="compare" style="--share:${share}%;${known?'':'visibility:hidden'}"><i></i><b></b></div><small>${totals}</small></div>${cells(1)}</div>`}).join('');
+ const period={match:'PARTIDO',series:'SERIE',tournament:'TORNEO'}[scope];
+ document.querySelector('.foot > span').textContent='ESTADÍSTICAS · '+period;
+ $('footnote').textContent='— = SIN DATOS';$('preview').textContent=preview?'VISTA PREVIA · DATOS DE EJEMPLO':'';
 }
-async function poll(){try{const r=await fetch(preview?'/preview-state':'/state',{cache:'no-store'});if(r.ok)render(await r.json())}catch(e){}setTimeout(poll,250)}poll();
+async function poll(){try{if(!catalog.length){const definitions=await fetch('/metrics',{cache:'no-store'});catalog=await definitions.json()}const r=await fetch(preview?'/preview-state':'/state',{cache:'no-store'});if(r.ok)render(await r.json())}catch(e){}setTimeout(poll,250)}poll();
 </script></html>

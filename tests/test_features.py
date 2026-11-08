@@ -155,6 +155,18 @@ class WorkflowTests(unittest.TestCase):
         s.ingest(dict(Event='MatchDestroyed', Data={}))
         self.assertFalse(s.gameplay)
 
+    def test_history_replay_and_public_match_do_not_advance_series(self):
+        s=self.store
+        s.ingest(dict(Event='ReplayCreated',Data={}))
+        s.ingest(dict(Event='UpdateState',Data=dict(Game=dict(PlaylistId=6),Players=[dict(Name='A',TeamNum=0)])))
+        self.assertFalse(s.snapshot()['studio']['gameplay'])
+        s.ingest(dict(Event='MatchEnded',Data=dict(WinnerTeamNum=0,MatchGuid='replay')))
+        self.assertEqual(s.config['teams'][0]['wins'],0)
+        s.ingest(dict(Event='MatchCreated',Data={}))
+        s.ingest(dict(Event='UpdateState',Data=dict(Game=dict(PlaylistId=13),Players=[dict(Name='A',TeamNum=0)])))
+        s.ingest(dict(Event='MatchEnded',Data=dict(WinnerTeamNum=0,MatchGuid='public')))
+        self.assertEqual(s.config['teams'][0]['wins'],0)
+
     def test_swapped_team_plays_its_original_prepared_victory(self):
         s = self.store
         s.config['bestof'] = 1
@@ -268,6 +280,9 @@ class DesktopIntegrationTests(unittest.TestCase):
         self.mock_connection = patch('app.GameConnection', autospec=True)
         self.connection = self.mock_connection.start()
         self.addCleanup(self.mock_connection.stop)
+        self.opening_patch = patch('app.App.choose_opening', return_value='pre')
+        self.opening_patch.start()
+        self.addCleanup(self.opening_patch.stop)
         self.root = tk.Tk()
         self.root.withdraw()
         self.app = App(self.root, library_dir=Path(self.temp.name)/'biblioteca')
@@ -284,14 +299,14 @@ class DesktopIntegrationTests(unittest.TestCase):
         marker.vars['font'].set('Impact')
         marker.vars['scale'].set('120')
         marker.vars['show_players'].set(False)
-        marker.panel_color_vars['boost'].set('Equipo A')
+        marker.panel_color_vars['boost0'].set('Equipo A')
         marker.panel_vars['boost'][0].set('1500')
         marker.css.insert('1.0', '.name {color:red}')
         self.assertTrue(marker.apply())
         config = self.app.store.snapshot()['config']
         self.assertEqual(config['font'], 'Impact')
         self.assertFalse(config['show_players'])
-        self.assertEqual(config['panel_colors']['boost'], 'pink')
+        self.assertEqual(config['panel_colors']['boost0'], 'pink')
         self.assertEqual(config['panels']['boost'][0], 1500)
         self.assertIn('color:red', config['custom_css'])
         self.assertEqual(config['teams'][0]['short'], 'T0')
@@ -355,6 +370,37 @@ class DesktopIntegrationTests(unittest.TestCase):
         self.assertEqual(self.app.profile, profile)
         self.assertEqual(clip_keys(self.app.profile, renderer_signature()), before)
 
+    def test_field_opening_uses_manual_video_and_keeps_series_flow(self):
+        for key, seconds in [('field',15),('pre',13),('victory0',4),('victory1',4)]:
+            video = Path(self.temp.name)/(key+'.mp4')
+            video.write_bytes(mp4(seconds))
+            self.app.video_fields[key].set(str(video))
+        self.app.use_manual_videos()
+        with patch('app.App.choose_opening', return_value='field'):
+            self.app.start()
+        self.assertEqual(self.app.store.phase, 'field')
+        self.assertEqual(self.app.store.scene_seconds['field'], 15)
+        self.app.store.duration('cut')
+        self.assertEqual(self.app.store.phase, 'game')
+        self.app.store.config['bestof'] = 1
+        self.app.store.ingest(dict(Event='MatchEnded', Data=dict(WinnerTeamNum=0,MatchGuid='final')))
+        self.assertEqual(self.app.store.pending_victory,'victory0')
+
+    def test_stats_picker_rejects_seventh_and_preserves_one_minimum(self):
+        with patch.object(self.app,'error') as error:
+            self.app.metric_vars['Touches'].set(True)
+            self.app.toggle_metric('Touches')
+            error.assert_called_once()
+        self.assertEqual(len(self.app.store.config['metrics']),6)
+        self.assertFalse(self.app.metric_vars['Touches'].get())
+        self.app.store.config['metrics']=['BoostUsed']
+        self.app.refresh_metric_controls()
+        with patch.object(self.app,'error') as error:
+            self.app.metric_vars['BoostUsed'].set(False)
+            self.app.toggle_metric('BoostUsed')
+            error.assert_called_once()
+        self.assertEqual(self.app.store.config['metrics'],['BoostUsed'])
+
     def test_user_videos_enable_start_and_use_their_duration(self):
         for key, seconds in [('pre', 22), ('victory0', 6), ('victory1', 8)]:
             path = Path(self.temp.name)/(key+'.mp4')
@@ -379,8 +425,9 @@ class DesktopIntegrationTests(unittest.TestCase):
         self.assertFalse(hasattr(self.app, 'player_rows'))
 
     def test_same_series_recovers_all_videos_without_rendering(self):
-        keys = clip_keys(self.app.profile, renderer_signature())
-        for key, duration in [('pre', 13), ('victory0', 2), ('victory1', 2)]:
+        from field import signature
+        keys = clip_keys(self.app.profile, renderer_signature(), signature())
+        for key, duration in [('field',15),('pre', 13), ('victory0', 2), ('victory1', 2)]:
             video = Path(self.temp.name)/(key+'.mp4')
             video.write_bytes(mp4(duration))
             self.app.library.save_clip(keys[key], video, dict(engine='EEVEE', kind=key))

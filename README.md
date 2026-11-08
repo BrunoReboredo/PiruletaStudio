@@ -4,7 +4,7 @@ Aplicación de escritorio para Windows que reúne Animaciones, Overlay y Estadí
 
 ## Abrir
 
-La actualización de esta entrega está en **portable/Piruleta Studio 0.6.1/Piruleta Studio.exe**. Las versiones anteriores se conservan en sus carpetas para no interrumpir trabajos en curso. Abre el ejecutable con doble clic y conserva `_internal` a su lado. No necesita Python instalado. Las compilaciones de desarrollo con `build.ps1` se crean en `portable/Piruleta Studio/`.
+La actualización de esta entrega está en **portable/Piruleta Studio 0.7/Piruleta Studio.exe**. Las versiones anteriores se conservan en sus carpetas para no interrumpir trabajos en curso. Abre el ejecutable con doble clic y conserva `_internal` a su lado. No necesita Python instalado. Las compilaciones de desarrollo con `build.ps1` se crean en `portable/Piruleta Studio/`.
 
 Para ejecutar el código fuente, con Python 3.11 o posterior (incluido Tkinter), abre **Abrir Piruleta Studio.cmd**. No necesita paquetes de pip. También puedes ejecutar `python app.py` desde esta carpeta.
 
@@ -15,7 +15,7 @@ Puedes generar los vídeos con **Blender 4.4 o posterior**, o cargar tus propios
 1. Introduce nombre, abreviatura, logo PNG/JPG de hasta 4 MB, color y coche de cada equipo. Equipo A corresponde al lado azul del juego y B al naranja.
 2. Opcionalmente selecciona una calcomanía ZIP o imagen. **Solo Octane, Fennec y Dominus.** Los BodyID del paquete tienen prioridad sobre el nombre de archivo. El coche se selecciona al identificarlo; se rechazan modelos incompatibles. Una imagen sin identificación necesita confirmación manual de compatibilidad; no se puede deducir su mapa UV con certeza y no se convierte entre coches.
 3. Elige el BO y pulsa **Continuar al panel**. Se valida y comparte la identidad con todos los elementos. Volver a continuar desde Datos configura una nueva serie y reinicia el resultado; no modifica las tres apps de origen.
-4. En **Panel de control → Blender y animaciones**, elige cómo preparar los tres vídeos: selecciona **EEVEE** (rápido, predeterminado) o **CYCLES** (calidad), indica Blender y la carpeta de salida y pulsa **Preparar vídeos · generar solo los que faltan**, o selecciona tus tres MP4 y pulsa **Usar estos tres vídeos**. Se reutilizan los vídeos coincidentes de la biblioteca. Si los tres ya están guardados se recuperan al continuar desde Datos y se habilita Iniciar serie sin renderizar. Se lee la duración real de cada vídeo. Los renders nuevos pueden tardar según el ordenador; puedes cancelar y consultar el registro junto a los archivos parciales.
+4. En **Panel de control → Blender y animaciones**, elige cómo preparar los cuatro vídeos: selecciona **EEVEE** (rápido, predeterminado) o **CYCLES** (calidad), indica Blender y la carpeta de salida y pulsa **Preparar vídeos · generar solo los que faltan**, o selecciona tus cuatro MP4 y pulsa **Usar estos vídeos**. Se reutilizan los vídeos coincidentes de la biblioteca. Si los cuatro ya están guardados se recuperan al continuar desde Datos y se habilita Iniciar serie sin renderizar. Se lee la duración real de cada vídeo. Los renders nuevos pueden tardar según el ordenador; puedes cancelar y consultar el registro junto a los archivos parciales.
 5. Pulsa **Copiar URL para OBS**. En tu escena de OBS añade una **Fuente de navegador**, pega la dirección y establece **1920 × 1080**. Desactiva las opciones de cerrar la fuente cuando no esté visible y actualizarla al activarse para conservar la precarga de los vídeos.
 6. Coloca esa fuente **encima de la captura de Rocket League**. Puedes mantener la misma escena de OBS durante toda la serie: la URL muestra prepartido, marcador, victoria, estadísticas y cierre automáticamente. Durante el partido el marcador es transparente; las animaciones y las estadísticas ocultan el juego. No necesitas otras fuentes ni contraseña.
 7. Abre Vista del programa para revisar el resultado. Pulsa **Iniciar serie** cuando los equipos estén listos y antes del primer partido.
@@ -65,7 +65,7 @@ El diseño del marcador no vuelve a generar las animaciones. Los cambios de nomb
 
 La ruta de Blender, el modo de render y la carpeta donde guardar las animaciones se encuentran junto a los botones de generación. **EEVEE** es el modo rápido predeterminado: conserva 1920 × 1080 y las duraciones de la plantilla, con 32 muestras y sin trazado de rayos de EEVEE. **CYCLES** mantiene la opción de calidad anterior. La iluminación y los reflejos pueden variar entre motores; comprueba el resultado con Vista del programa.
 
-Se preparan el prepartido y ambas victorias antes de empezar, pero solo se renderizan los vídeos que no coinciden con la biblioteca. **Cargar preparación** sigue permitiendo recuperar un `manifest.json` de una exportación anterior si coincide con los datos y contenidos actuales.
+Se preparan Campo, Coches y ambas victorias antes de empezar, pero solo se renderizan los vídeos que no coinciden con la biblioteca. **Cargar preparación** sigue permitiendo recuperar un `manifest.json` de una exportación anterior si coincide con los datos y contenidos actuales.
 
 #### Biblioteca automática
 
@@ -77,11 +77,11 @@ Se guarda en **`%LOCALAPPDATA%/Piruleta Studio/Biblioteca`**, fuera de la carpet
 - Los vídeos se distinguen por equipos, nombres, abreviaturas, coches, colores, contenido de logos/calcomanías, cabecera, motor y revisión de plantilla/modelos/trabajador. Cambiar solo BO o ronda no vuelve a renderizar las animaciones.
 - Si cambia un equipo, se generan su victoria y el prepartido; se reutiliza la victoria del otro. Si intercambias los equipos entre series, pueden reutilizarse ambas victorias. El prepartido depende del orden de los dos equipos.
 - EEVEE y Cycles tienen vídeos independientes. No se utiliza un render de un motor como sustituto automático del otro.
-- Si los tres clips coinciden, se habilita el inicio sin necesitar ejecutar Blender. Si pulsas Preparar vídeos igualmente, se copian los clips recuperados a una nueva carpeta de salida junto a su manifest, sin render.
+- Si los cuatro clips coinciden, se habilita el inicio sin necesitar ejecutar Blender. Si pulsas Preparar vídeos igualmente, se copian los clips recuperados a una nueva carpeta de salida junto a su manifest, sin render.
 
 Las preparaciones de versiones anteriores siguen cargándose manualmente con **Cargar preparación**; no se buscan ni se atribuyen automáticamente a EEVEE. Los vídeos propios se siguen seleccionando desde su apartado independiente.
 
-Para usar vídeos propios, selecciona **Prepartido**, **Victoria equipo A** y **Victoria equipo B** y pulsa **Usar estos tres vídeos**. Se admiten **MP4 con vídeo H.264**, se comprueba que tengan metadatos de vídeo y una duración válida y se respeta esa duración en el flujo. Comprueba la reproducción desde **Vista del programa** antes de emitir. No se ejecuta Blender para importar vídeos. Los archivos deben seguir disponibles en sus rutas.
+Para usar vídeos propios, selecciona **Campo**, **Coches**, **Victoria equipo A** y **Victoria equipo B** y pulsa **Usar estos vídeos**. Se admiten **MP4 con vídeo H.264**, se comprueba que tengan metadatos de vídeo y una duración válida y se respeta esa duración en el flujo. Comprueba la reproducción desde **Vista del programa** antes de emitir. No se ejecuta Blender para importar vídeos. Los archivos deben seguir disponibles en sus rutas.
 
 Puedes mostrar prepartido o cualquiera de las victorias manualmente y cortar la animación desde esta categoría. Los vídeos de victoria A/B corresponden a los equipos de los datos iniciales, aunque después intercambies sus lados en Marcador.
 
@@ -163,3 +163,21 @@ La generación de Blender elimina los discos de fondo detrás de los escudos y c
 En la 0.6.1 el último partido automático sigue el orden podio/MVP → victoria → estadísticas. La victoria espera al aviso PodiumStart más 3 segundos, se reproduce completa y después aparecen las estadísticas. Si las estadísticas están desactivadas se mantiene el MVP y la victoria, y después termina la serie. Los botones manuales siguen permitiendo adelantar las escenas.
 
 La ventana y el ejecutable usan el icono de la piruleta del logo; el icono multirresolución está en `vendor/branding/piruleta.ico`.
+
+## Estadísticas actualizadas
+
+Se integran los cambios de PostMatchRocketLeague: la última fila muestra TURBO USADO, una estimación acumulada por jugador (100 equivale a un depósito). Solo cuenta las bajadas observadas al usar turbo; las recogidas entre muestras pueden ocultar parte del consumo. Descarta comparaciones durante repeticiones, pausas, demoliciones y cambios de ronda. Si faltan datos se muestra un guion; conectarse a mitad de partido solo permite medir lo observado desde entonces.
+
+Studio conserva el total del partido finalizado mientras se muestran las escenas y lo reinicia para el siguiente partido. Mantiene sus colores en directo, perfiles, logo del torneo y orden MVP → victoria → estadísticas. No es necesario regenerar los vídeos de Blender.
+
+## Versión 0.7 · integración de las tres apps
+
+Preparar vídeos produce cuatro clips: Campo (15 s, 1080p60), Coches (13 s) y una victoria por equipo (4 s). Campo utiliza el mismo exportador rápido de la app de animaciones: composición directa y H.264, sin Blender. En Blender y animaciones puedes elegir Champions Field, Mannfield o Estadio DFH. Coches utiliza la nueva arena envolvente, ruedas Dieci, faros y escudos iluminados. La biblioteca conserva cada clip completo y reutiliza coincidencias. Cambiar solo EEVEE/Cycles reutiliza Campo, cuyo motor siempre es rápido.
+
+Al pulsar Iniciar serie aparece la elección Campo/Coches. Ambas aperturas pasan al juego y conservan el resto del flujo. Campo también tiene archivo manual y botón de emisión manual. Las preparaciones antiguas de tres vídeos siguen siendo válidas para Coches; Campo se habilita cuando añades su cuarto vídeo. El motor de arranque suena solo en Coches.
+
+Estadísticas muestra solo duración predeterminada, mostrar hasta ocultar, ocultar y selección ordenada de entre 1 y 6 métricas básicas. Incluye puntos, goles, asistencias, tiros, salvadas, toques de balón, contactos entre coches, demoliciones y turbo usado. Menos de seis filas se centran y usan las nuevas barras. No se añaden los controles de periodo, agregación ni las estadísticas avanzadas de la app individual. Se mantienen el color del marcador y el orden MVP → victoria → estadísticas del último partido.
+
+Marcador incorpora fondos de turbo y estadísticas independientes para cada equipo y el cambio de fondo degradado/plano. Conserva los checks, las barras alineadas con los logos, el logo de torneo configurable y los perfiles anteriores. Las repeticiones de goles siguen visibles; los archivos de repetición y las partidas públicas identificadas se ocultan.
+
+Para ejecutar el código fuente con Campo rápido instala las dependencias de `requirements.txt`; el ejecutable portable ya las incluye. Las apps individuales no se modifican. Genera nuevos vídeos para usar la arena nueva y Campo.

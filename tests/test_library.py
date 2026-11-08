@@ -35,6 +35,13 @@ class LibraryTests(unittest.TestCase):
         self.runner_patch = patch('render.run_job', side_effect=renderer)
         self.runner = self.runner_patch.start()
         self.addCleanup(self.runner_patch.stop)
+        def field_renderer(profile, folder, report, cancelled):
+            path = folder/'Apertura.mp4'
+            path.write_bytes(mp4(15))
+            return path
+        self.field_patch = patch('render.field.render', side_effect=field_renderer)
+        self.field_runner = self.field_patch.start()
+        self.addCleanup(self.field_patch.stop)
 
     def prepare(self, profile=None):
         return prepare(profile or self.profile, self.root/'renders', lambda msg: None,
@@ -71,7 +78,7 @@ class LibraryTests(unittest.TestCase):
         self.runner.reset_mock()
         second = self.prepare(other)
         self.runner.assert_not_called()
-        self.assertEqual(set(second['reused']), {'pre', 'victory0', 'victory1'})
+        self.assertEqual(set(second['reused']), {'field','pre', 'victory0', 'victory1'})
         self.assertNotEqual(first['files']['pre'], second['files']['pre'])
 
     def test_only_changed_team_and_pre_match_are_regenerated(self):
@@ -81,7 +88,7 @@ class LibraryTests(unittest.TestCase):
         self.runner.reset_mock()
         result = self.prepare(changed)
         self.assertEqual(self.runner.call_count, 2)
-        self.assertEqual(result['reused'], ['victory1'])
+        self.assertEqual(set(result['reused']), {'field','victory1'})
 
     def test_team_swap_reuses_both_victories(self):
         self.prepare()
@@ -99,7 +106,7 @@ class LibraryTests(unittest.TestCase):
         self.runner.reset_mock()
         result = self.prepare(cycles)
         self.assertEqual(self.runner.call_count, 3)
-        self.assertEqual(result['reused'], [])
+        self.assertEqual(result['reused'], ['field'])
         self.assertTrue(all(call.args[1]['engine'] == 'CYCLES' for call in self.runner.call_args_list))
 
     def test_corrupt_cached_video_is_regenerated(self):
@@ -109,7 +116,7 @@ class LibraryTests(unittest.TestCase):
         self.runner.reset_mock()
         result = self.prepare()
         self.assertEqual(self.runner.call_count, 1)
-        self.assertEqual(set(result['reused']), {'pre', 'victory1'})
+        self.assertEqual(set(result['reused']), {'field','pre', 'victory1'})
 
     def test_full_cache_does_not_require_installed_blender(self):
         self.prepare()
@@ -117,7 +124,7 @@ class LibraryTests(unittest.TestCase):
         self.runner.reset_mock()
         result = self.prepare()
         self.runner.assert_not_called()
-        self.assertEqual(len(result['reused']), 3)
+        self.assertEqual(len(result['reused']), 4)
 
     def test_template_change_invalidates_videos(self):
         self.prepare()
@@ -125,6 +132,29 @@ class LibraryTests(unittest.TestCase):
         with patch('render.renderer_signature', return_value='template-v2'):
             self.prepare()
         self.assertEqual(self.runner.call_count, 3)
+
+    def test_missing_field_uses_fast_export_without_blender(self):
+        self.prepare()
+        from field import signature
+        key=clip_keys(self.profile,'template-v1',signature())['field']
+        (self.library.root/'videos'/key/'video.mp4').unlink()
+        self.profile['blender']=str(self.root/'not-installed.exe')
+        self.runner.reset_mock()
+        self.field_runner.reset_mock()
+        result=self.prepare()
+        self.runner.assert_not_called()
+        self.field_runner.assert_called_once()
+        self.assertEqual(set(result['reused']),{'pre','victory0','victory1'})
+
+    def test_map_change_regenerates_only_fast_field(self):
+        self.prepare()
+        self.runner.reset_mock()
+        self.field_runner.reset_mock()
+        self.profile['stadium']='Mannfield'
+        result=self.prepare()
+        self.runner.assert_not_called()
+        self.field_runner.assert_called_once()
+        self.assertEqual(set(result['reused']),{'pre','victory0','victory1'})
 
     def test_series_length_and_round_do_not_force_visual_renders(self):
         self.prepare()

@@ -26,11 +26,21 @@ def limited_runner(blender, config, folder, cancelled):
     calls.append(config['only_scenes'][0])
     original_runner(blender, config, folder, cancelled)
 
-with patch('render.run_job', side_effect=limited_runner):
+original_field = render.field.render
+def checked_field(profile, folder, report, cancelled):
+    existing = root/'data/smoke_field_current/Apertura.mp4'
+    if existing.is_file():
+        import shutil
+        target=folder/'Apertura.mp4'
+        shutil.copy2(existing,target)
+        return target
+    return original_field(profile,folder,report,cancelled)
+
+with patch('render.run_job', side_effect=limited_runner), patch('render.field.render',side_effect=checked_field):
     first = render.prepare(profile, destination, print, threading.Event(), library_dir=library)
     assert len(calls) == 3
     second = render.prepare(profile, destination, print, threading.Event(), library_dir=library)
     assert len(calls) == 3, 'La segunda preparación no debe volver a ejecutar Blender.'
-    assert len(second['reused']) == 3
+    assert len(second['reused']) == 4
     assert all(Path(p).is_file() for p in second['files'].values())
-print('EEVEE 1080p + caché real: tres vídeos renderizados y tres reutilizados sin ejecutar Blender.', flush=True)
+print('EEVEE 1080p + caché real: tres clips Blender y Campo rápido; cuatro vídeos reutilizados sin ejecutar Blender.', flush=True)

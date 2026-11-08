@@ -33,7 +33,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
  for(let n=0;n<3;n++){if(blackAnimation)blackAnimation.finish();await wait(10)}
  if(getComputedStyle(document.getElementById('game')).opacity!=='1')throw Error('Initial game');
  let previous='game';
- for(const p of ['pre','stats','victory0','victory1','game','end']){
+ for(const p of ['field','pre','stats','victory0','victory1','game','end']){
   const change=showScene(p),black=document.getElementById('fade');
   const outgoing=document.getElementById(previous);
   if(!outgoing.classList.contains('active'))throw Error('Outgoing replaced before black');
@@ -59,7 +59,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   blackAnimation.finish();await change;
   if(Number(getComputedStyle(black).opacity)!==0)throw Error('Black layer remained');
   for(const id of ids){if(id!==p&&getComputedStyle(document.getElementById(id)).visibility!=='hidden')throw Error('Outgoing '+id)}
-  if(p==='pre'&&document.getElementById('engine').paused)throw Error('Engine audio did not start in pre');
+  if(!location.search.includes('noautoplay')&&p==='pre'&&document.getElementById('engine').paused)throw Error('Engine audio did not start in pre');
   if(p!=='pre'&&!document.getElementById('engine').paused)throw Error('Engine audio outside pre');
   previous=p;
  }
@@ -85,8 +85,20 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
  if(engine.duration!==8)throw Error('Engine audio did not decode: '+engine.duration);
  const frame=document.getElementById('stats').contentDocument;
  const stage=frame.getElementById('stage');
+ if(!frame.getElementById('rows').textContent.includes('TURBO USADO'))throw Error('Missing new boost row');
+ if(frame.getElementById('rows').textContent.includes('DEMOLICIONES'))throw Error('Old demolition row');
+ if(!frame.getElementById('rows').textContent.replace(/[^0-9]/g,'').includes('1420'))throw Error('Boost totals not displayed');
  if(stage.style.getPropertyValue('--pink')!=='#00ff00')throw Error('Stats live color');
  if(stage.style.getPropertyValue('--yellow')!=='#0077ff')throw Error('Stats second color');
+ const statsWindow=document.getElementById('stats').contentWindow;
+ sample.config.metrics=['BoostUsed'];statsWindow.render(sample);
+ if(frame.querySelectorAll('.row').length!==1||!frame.getElementById('rows').classList.contains('compact'))throw Error('Single compact statistic');
+ sample.config.metrics=['Demos','Touches'];statsWindow.render(sample);
+ if(frame.querySelectorAll('.row').length!==2||!frame.getElementById('rows').textContent.includes('DEMOLICIONES'))throw Error('Basic metric selection');
+ sample.config.scoreboard_gradient=false;sample.config.panel_colors.boost1='pink';
+ sample.match.players=[{Name:'Observed',TeamNum:1,Boost:50}];sample.match.target='Observed';overlay.render(sample);
+ if(!overlay.document.getElementById('stage').classList.contains('flat'))throw Error('Flat scoreboard');
+ if(overlay.document.getElementById('stage').style.getPropertyValue('--boost-bg')!==sample.config.colors.pink)throw Error('Side-specific boost background');
  document.body.dataset.qa='PASS';
 }catch(e){document.body.dataset.qa='FAIL: '+e.message}})();
 </script>
@@ -99,7 +111,10 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
 
         def do_GET(self):
             route = self.path.split('?')[0]
-            if route == '/state':
+            if route == '/metrics':
+                from vendor.postmatch.basic_metrics import CATALOG
+                data, kind = json.dumps(CATALOG).encode(), 'application/json'
+            elif route == '/state':
                 data, kind = json.dumps(state).encode(), 'application/json'
             elif route == '/program':
                 data, kind = program.encode(), 'text/html'
@@ -122,6 +137,10 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
     server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     try:
+        if '--serve' in sys.argv:
+            print(f'http://127.0.0.1:{server.server_port}/program', flush=True)
+            threading.Event().wait()
+            return
         with tempfile.TemporaryDirectory() as profile:
             result = subprocess.run([
                 r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe',
@@ -133,7 +152,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
             output = result.stdout.decode(errors='replace')
             if 'data-qa="PASS"' not in output:
                 import re
-                raise AssertionError(re.findall(r'data-(?:qa|error)="[^"]*"', output) or result.stderr.decode(errors='replace')[-1000:])
+                raise AssertionError(re.findall(r'data-(?:qa|error)="[^"]*"', output) or f'Edge exit={result.returncode}; stdout={len(result.stdout)}; stderr='+result.stderr.decode(errors='replace')[-1000:])
             print('PASS: real browser 800 ms black transition, marker visibility/alignment, audio decode and statistics palette')
     finally:
         server.shutdown()

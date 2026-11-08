@@ -61,7 +61,8 @@ class MarkerPanel(OverlayApp):
                                'yellow': 'Equipo B', 'text': 'Color del texto'}
         self.panel_color_vars = {}
         ttk.Label(backgrounds, text='Fondos vinculados a la paleta del marcador principal.').pack(anchor='w', pady=(0, 12))
-        for key, label in [('boost', 'Indicador de turbo'), ('stats', 'Caja de estadísticas'),
+        for key, label in [('boost0', 'Turbo equipo A'), ('boost1', 'Turbo equipo B'),
+                           ('stats0', 'Estadísticas equipo A'), ('stats1', 'Estadísticas equipo B'),
                            ('players0', 'Jugadores equipo A'), ('players1', 'Jugadores equipo B')]:
             row = ttk.Frame(backgrounds)
             row.pack(fill='x', pady=6)
@@ -73,6 +74,9 @@ class MarkerPanel(OverlayApp):
             selector.bind('<<ComboboxSelected>>', lambda event: self.apply())
         ttk.Label(backgrounds, text='Al cambiar esos colores en Diseño, los fondos elegidos se actualizan también.',
                   wraplength=500, foreground='#b6a4c3').pack(anchor='w', pady=12)
+        self.vars['scoreboard_gradient'] = tk.BooleanVar(value=self.store.config['scoreboard_gradient'])
+        ttk.Checkbutton(backgrounds, text='Fondo del marcador en degradado (desmarcado: plano)',
+                        variable=self.vars['scoreboard_gradient'], command=self.apply, style='Marker.TCheckbutton').pack(anchor='w', pady=8)
         self.panel_vars = {}
         ttk.Label(layout, text='Panel                       X               Y          Escala %').pack(anchor='w')
         for key, label in [('players0', 'Jugadores A'), ('players1', 'Jugadores B'), ('focus', 'Estadísticas'), ('boost', 'Turbo'), ('brand', 'Marca'), ('banner', 'Avisos')]:
@@ -222,6 +226,10 @@ class MarkerPanel(OverlayApp):
         with self.store.lock:
             self.store.config['brand_logo'] = ''
         self.owner.note.set('Logo del torneo restablecido al de Piruleta.')
+
+    def sync(self):
+        super().sync()
+        self.owner.refresh_metric_controls()
 
     def reconnect(self):
         try:

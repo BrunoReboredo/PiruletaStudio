@@ -1,4 +1,4 @@
-"""Windows desktop application. Python 3.11+, standard library only."""
+"""Windows desktop application. Python 3.11+, plus Pillow/OpenCV/imageio-ffmpeg for fast field exports."""
 import copy
 import json
 import math
@@ -20,6 +20,7 @@ from library import Library
 from obs import OBS, SCENES
 from marker import MarkerPanel, install_check_style
 from media import imported_manifest, mp4_duration
+from vendor.postmatch.basic_metrics import CATALOG, normalize_metrics
 
 ROOT = Path(__file__).resolve().parent
 if os.name == 'nt':
@@ -27,7 +28,7 @@ if os.name == 'nt':
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('PiruletaStudio.Desktop')
 DATA = (Path(sys.executable).resolve().parent if getattr(sys, 'frozen', False) else ROOT)/'data'
 LIBRARY = Path(os.environ.get('LOCALAPPDATA', str(Path.home())))/'Piruleta Studio'/'Biblioteca'
-LABELS = dict(pre='Prepartido', game='Partido', stats='Estadísticas',
+LABELS = dict(field='Campo', pre='Coches', game='Partido', stats='Estadísticas',
               victory0='Victoria A', victory1='Victoria B', complete='Fin de serie')
 
 
@@ -36,7 +37,8 @@ class App:
         self.root = root
         self.library = Library(library_dir or LIBRARY)
         self.profile_fingerprints = set()
-        root.title('Piruleta Studio · Control de retransmisión')
+        self.legacy_fingerprints = set()
+        root.title('Piruleta Studio 0.7 · Control de retransmisión')
         self.icon_image = tk.PhotoImage(master=root, file=str(ROOT/'vendor/branding/piruleta.png'))
         root.iconphoto(True, self.icon_image)
         if os.name == 'nt':
@@ -197,6 +199,10 @@ class App:
         mode.grid(row=2, column=1, sticky='w')
         mode.bind('<<ComboboxSelected>>', self.change_engine)
         ttk.Label(prep, text='EEVEE: rápido · CYCLES: calidad').grid(row=2, column=2, sticky='w')
+        ttk.Label(prep, text='Estadio · Campo rápido').grid(row=5, column=0, sticky='w')
+        stadium = ttk.Combobox(prep, textvariable=self.vars['stadium'], values=('Champions Field','Mannfield','Estadio DFH'), state='readonly')
+        stadium.grid(row=5, column=1, sticky='ew', pady=8)
+        stadium.bind('<<ComboboxSelected>>', self.change_stadium)
         row = ttk.Frame(prep)
         row.grid(row=3, column=0, columnspan=3, sticky='ew', pady=10)
         self.render_button = ttk.Button(row, text='Preparar vídeos · generar solo los que faltan', command=self.render, style='Accent.TButton')
@@ -217,17 +223,17 @@ class App:
         manual = ttk.LabelFrame(parent, text='Usar vídeos propios · no requiere Blender')
         manual.pack(fill='x', pady=(0, 12))
         manual.columnconfigure(1, weight=1)
-        self.video_fields = {key: tk.StringVar() for key in ('pre', 'victory0', 'victory1')}
-        for row, (key, title) in enumerate((('pre', 'Prepartido'), ('victory0', 'Victoria equipo A'), ('victory1', 'Victoria equipo B'))):
+        self.video_fields = {key: tk.StringVar() for key in ('field', 'pre', 'victory0', 'victory1')}
+        for row, (key, title) in enumerate((('field', 'Campo'), ('pre', 'Coches'), ('victory0', 'Victoria equipo A'), ('victory1', 'Victoria equipo B'))):
             self.entry(manual, title, self.video_fields[key], row, lambda k=key: self.pick_video(k))
-        ttk.Label(manual, text='Selecciona tres MP4 con vídeo H.264. La duración de cada animación se detecta automáticamente. '
-                  'Comprueba que cada victoria corresponde al equipo A/B de los datos iniciales.', wraplength=980).grid(row=3, column=0, columnspan=3, sticky='w', pady=10)
-        ttk.Button(manual, text='Usar estos tres vídeos', command=self.use_manual_videos, style='Accent.TButton').grid(row=4, column=0, columnspan=3, sticky='w')
+        ttk.Label(manual, text='Selecciona cuatro MP4 con vídeo H.264. La duración de cada animación se detecta automáticamente. '
+                  'Comprueba que cada victoria corresponde al equipo A/B de los datos iniciales.', wraplength=980).grid(row=4, column=0, columnspan=3, sticky='w', pady=10)
+        ttk.Button(manual, text='Usar estos vídeos', command=self.use_manual_videos, style='Accent.TButton').grid(row=5, column=0, columnspan=3, sticky='w')
         self.video_summary = tk.StringVar(value='Sin vídeos preparados. Puedes generarlos o seleccionar los tuyos.')
         ttk.Label(parent, textvariable=self.video_summary, wraplength=980, foreground='#ffcf6a').pack(anchor='w', pady=8)
         view = ttk.LabelFrame(parent, text='Mostrar animaciones en la emisión')
         view.pack(fill='x', pady=8)
-        for key in ('pre', 'victory0', 'victory1'):
+        for key in ('field', 'pre', 'victory0', 'victory1'):
             ttk.Button(view, text=LABELS[key], command=lambda k=key: self.force(k)).pack(side='left', padx=4)
         ttk.Button(view, text='Cortar animación', command=lambda: self.store.duration('cut')).pack(side='left', padx=10)
 
@@ -236,26 +242,70 @@ class App:
         box.pack(fill='x')
         self.stats_auto = tk.BooleanVar(value=True)
         self.stats_duration = tk.StringVar(value='10')
-        ttk.Checkbutton(box, text='Mostrar automáticamente al terminar cada partido', variable=self.stats_auto,
-                        command=self.apply_stats_options).pack(anchor='w', pady=8)
         row = ttk.Frame(box)
         row.pack(fill='x', pady=8)
         ttk.Label(row, text='Duración predeterminada (segundos)').pack(side='left')
         ttk.Spinbox(row, from_=1, to=300, textvariable=self.stats_duration, width=7).pack(side='left', padx=10)
-        ttk.Button(row, text='Aplicar', command=self.apply_stats_options).pack(side='left')
-        ttk.Label(box, text='Por defecto: se muestran durante 10 segundos, 3 segundos después del inicio del podio / MVP. En el partido que decide la serie, '
-                  'primero se reproduce la victoria completa y después aparecen las estadísticas.', wraplength=980).pack(anchor='w', pady=8)
+        ttk.Button(row, text='Aplicar duración', command=self.apply_stats_options).pack(side='left')
+        ttk.Label(box, text='Aparecen automáticamente después de cada partido. En el último: MVP → victoria → estadísticas.', wraplength=980).pack(anchor='w', pady=8)
         row = ttk.Frame(box)
         row.pack(fill='x', pady=10)
         ttk.Button(row, text='Mostrar hasta que las quite', command=lambda: self.show_statistics(False)).pack(side='left')
-        ttk.Button(row, text='Mostrar con temporizador', command=lambda: self.show_statistics(True)).pack(side='left', padx=8)
-        ttk.Button(row, text='Ocultar estadísticas', command=self.store.hide_stats, style='Accent.TButton').pack(side='left')
-        row = ttk.Frame(box)
-        row.pack(fill='x', pady=(0, 8))
-        ttk.Button(row, text='Añadir 10 segundos', command=lambda: self.stats_timer('extend')).pack(side='left')
-        ttk.Button(row, text='Pausar / reanudar temporizador', command=lambda: self.stats_timer('hold')).pack(side='left', padx=8)
+        ttk.Button(row, text='Ocultar estadísticas', command=self.store.hide_stats, style='Accent.TButton').pack(side='left', padx=8)
+        selection = ttk.LabelFrame(parent, text='Estadísticas básicas · máximo 6')
+        selection.pack(fill='x', pady=12)
+        self.metric_vars = {}
+        for metric in CATALOG:
+            var = tk.BooleanVar(value=metric['key'] in self.store.config['metrics'])
+            self.metric_vars[metric['key']] = var
+            ttk.Checkbutton(selection, text=metric['label'], variable=var, style='Marker.TCheckbutton',
+                            command=lambda k=metric['key']: self.toggle_metric(k)).pack(anchor='w', pady=3)
+        self.metric_order = tk.Listbox(selection, height=6, bg='#100e18', fg='white', exportselection=False)
+        self.metric_order.pack(fill='x', pady=8)
+        row = ttk.Frame(selection)
+        row.pack(fill='x')
+        ttk.Button(row, text='Subir', command=lambda: self.move_metric(-1)).pack(side='left')
+        ttk.Button(row, text='Bajar', command=lambda: self.move_metric(1)).pack(side='left', padx=8)
         self.stats_summary = tk.StringVar(value='Esperando al primer partido finalizado.')
         ttk.Label(parent, textvariable=self.stats_summary, wraplength=980, foreground='#ffcf6a').pack(anchor='w', pady=18)
+        self.refresh_metric_controls()
+
+    def refresh_metric_controls(self):
+        if not hasattr(self, 'metric_vars'):
+            return
+        chosen = self.store.config['metrics']
+        names = {m['key']:m['label'] for m in CATALOG}
+        for key, var in self.metric_vars.items():
+            var.set(key in chosen)
+        self.metric_order.delete(0, 'end')
+        for key in chosen:
+            self.metric_order.insert('end', names[key])
+
+    def toggle_metric(self, key):
+        chosen = list(self.store.config['metrics'])
+        if self.metric_vars[key].get():
+            chosen.append(key)
+        elif key in chosen:
+            chosen.remove(key)
+        try:
+            with self.store.lock:
+                self.store.config['metrics'] = normalize_metrics(chosen)
+        except ValueError as exc:
+            self.error(exc)
+        self.refresh_metric_controls()
+
+    def move_metric(self, direction):
+        selected = self.metric_order.curselection()
+        if not selected:
+            return
+        chosen = list(self.store.config['metrics'])
+        i, j = selected[0], selected[0]+direction
+        if 0 <= j < len(chosen):
+            chosen[i], chosen[j] = chosen[j], chosen[i]
+            with self.store.lock:
+                self.store.config['metrics'] = chosen
+            self.refresh_metric_controls()
+            self.metric_order.selection_set(j)
 
     def build_program_controls(self, parent):
         scenes = ttk.LabelFrame(parent, text='Control de la emisión')
@@ -290,6 +340,18 @@ class App:
         except Exception as exc:
             self.error(exc)
 
+    def change_stadium(self, event=None):
+        if not self.profile:
+            return
+        if self.store.armed or (self.render_thread and self.render_thread.is_alive()):
+            self.vars['stadium'].set(self.profile.get('stadium','Champions Field'))
+            return
+        self.profile['stadium'] = self.vars['stadium'].get()
+        self.profile_fingerprints = {fingerprint(self.profile)}
+        self.media.clear()
+        self.start_button.configure(state='disabled')
+        self.check_library()
+
     def change_engine(self, event=None):
         if not self.profile:
             return
@@ -310,13 +372,13 @@ class App:
         try:
             clips = cached_clips(self.profile, self.library.root)
             count = sum(clip is not None for clip in clips.values())
-            if count == 3:
+            if count == 4:
                 self.accept_manifest(dict(fingerprint=fingerprint(self.profile), source='library',
                                           engine=self.profile.get('render_engine', 'EEVEE'),
                                           files={key: clip['path'] for key, clip in clips.items()}, reused=list(clips)))
-                self.note.set('Los tres vídeos coinciden con la biblioteca y están listos. No hace falta renderizar.')
+                self.note.set('Los cuatro vídeos coinciden con la biblioteca y están listos. No hace falta renderizar.')
             else:
-                self.video_summary.set(f'Biblioteca: {count}/3 vídeos disponibles para '+self.profile.get('render_engine', 'EEVEE')+
+                self.video_summary.set(f'Biblioteca: {count}/4 vídeos disponibles para '+self.profile.get('render_engine', 'EEVEE')+
                                        '. Preparar vídeos generará únicamente los que faltan.')
         except Exception as exc:
             self.error(exc)
@@ -327,7 +389,7 @@ class App:
             try:
                 duration = mp4_duration(path)
                 self.video_fields[key].set(path)
-                self.video_summary.set(LABELS[key]+f' seleccionado · {duration:.2f} s. Pulsa Usar estos tres vídeos para aplicarlos.')
+                self.video_summary.set(LABELS[key]+f' seleccionado · {duration:.2f} s. Pulsa Usar estos vídeos para aplicarlos.')
             except Exception as exc:
                 self.error(exc)
 
@@ -336,7 +398,7 @@ class App:
             self.error('Configura una nueva serie o espera a terminar la generación antes de cambiar los vídeos.')
             return
         try:
-            manifest = imported_manifest(fingerprint(self.profile), {k: v.get() for k, v in self.video_fields.items()})
+            manifest = imported_manifest(fingerprint(self.profile), {k: v.get() for k, v in self.video_fields.items() if v.get().strip()})
             self.accept_manifest(manifest)
         except Exception as exc:
             self.error(exc)
@@ -440,8 +502,10 @@ class App:
             if self.store.armed and not messagebox.askyesno('Nueva serie', 'Esto detendrá la automatización y reiniciará el resultado de la serie. ¿Continuar?', parent=self.root):
                 return
             self.profile_fingerprints = {fingerprint(profile)}
+            self.legacy_fingerprints = {fingerprint(profile, include_stadium=False)}
             profile = self.library.import_profile(profile)
             self.profile_fingerprints.add(fingerprint(profile))
+            self.legacy_fingerprints.add(fingerprint(profile, include_stadium=False))
             self.populate(profile)
             self.profile = profile
             self.store.configure(profile)
@@ -454,7 +518,7 @@ class App:
             for variable in self.video_fields.values():
                 variable.set('')
             self.video_summary.set('Sin vídeos preparados para esta serie.')
-            self.note.set('Datos sincronizados. Prepara los tres vídeos antes de iniciar la serie.')
+            self.note.set('Datos sincronizados. Prepara los cuatro vídeos antes de iniciar la serie.')
             self.check_library()
         except Exception as exc:
             self.error(exc)
@@ -494,10 +558,13 @@ class App:
         self.render_thread.start()
 
     def accept_manifest(self, manifest):
-        if manifest['fingerprint'] not in self.profile_fingerprints | {fingerprint(self.profile)}:
+        allowed = self.profile_fingerprints | {fingerprint(self.profile)}
+        if 'field' not in manifest['files']:
+            allowed |= self.legacy_fingerprints | {fingerprint(self.profile, include_stadium=False)}
+        if manifest['fingerprint'] not in allowed:
             raise ValueError('La preparación corresponde a otros datos. Vuelve a generar los vídeos.')
-        if set(manifest['files']) != {'pre', 'victory0', 'victory1'}:
-            raise ValueError('La preparación está incompleta. Se necesitan los tres vídeos.')
+        if set(manifest['files']) not in ({'pre','victory0','victory1'}, {'field','pre','victory0','victory1'}):
+            raise ValueError('La preparación está incompleta. Se necesitan los cuatro vídeos.')
         durations = {key: mp4_duration(path) for key, path in manifest['files'].items()}
         updated = copy.deepcopy(manifest)
         updated.update(durations=durations, version=uuid.uuid4().hex)
@@ -512,7 +579,7 @@ class App:
             origin += ' · '+updated['engine']
         self.video_summary.set(origin+' lista · '+ ' / '.join(LABELS[k]+f': {v:.2f} s' for k,v in durations.items()))
         self.start_button.configure(state='normal')
-        self.note.set('Los tres vídeos están listos. Ya puedes iniciar la serie.')
+        self.note.set('Los cuatro vídeos están listos. Ya puedes iniciar la serie.')
 
     def load_manifest(self):
         if self.store.armed or (self.render_thread and self.render_thread.is_alive()):
@@ -525,6 +592,25 @@ class App:
             except Exception as exc:
                 self.error(exc)
 
+    def choose_opening(self):
+        dialog = tk.Toplevel(self.root)
+        dialog.title('Escena inicial de la serie')
+        dialog.transient(self.root)
+        dialog.resizable(False, False)
+        result = [None]
+        ttk.Label(dialog, text='¿Cómo quieres empezar la serie?', font=('Segoe UI',14,'bold')).pack(padx=28,pady=20)
+        row = ttk.Frame(dialog, padding=16)
+        row.pack(fill='x')
+        def choose(value):
+            result[0] = value
+            dialog.destroy()
+        for key, label in [('field','Campo'),('pre','Coches')]:
+            ttk.Button(row, text=label, command=lambda k=key: choose(k), state='normal' if key in self.media['files'] else 'disabled').pack(side='left',padx=8)
+        ttk.Button(row,text='Cancelar',command=dialog.destroy).pack(side='left',padx=8)
+        dialog.grab_set()
+        self.root.wait_window(dialog)
+        return result[0]
+
     def start(self):
         if not self.profile:
             self.error('Completa los datos de la nueva serie antes de iniciarla.')
@@ -534,12 +620,18 @@ class App:
         if self.store.armed:
             self.error('La serie ya está iniciada. Para una nueva serie vuelve a Datos y pulsa Continuar.')
             return
-        self.store.start()
+        opening = self.choose_opening()
+        if opening is None:
+            return
+        if opening not in self.media['files']:
+            self.error('Falta el vídeo de Campo. Prepáralo o súbelo antes de elegir esta apertura.')
+            return
+        self.store.start(opening)
         self.start_button.configure(state='disabled')
         self.note.set('Serie iniciada. Las escenas seguirán los finales de partido del juego.')
 
     def force(self, phase):
-        if phase in ('pre', 'victory0', 'victory1') and not self.media:
+        if phase in ('field', 'pre', 'victory0', 'victory1') and (not self.media or phase not in self.media['files']):
             self.error('Prepara los vídeos antes de mostrar esta escena.')
             return
         if phase == 'stats' and not self.store.postmatch:

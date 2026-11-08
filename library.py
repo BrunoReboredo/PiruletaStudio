@@ -112,7 +112,7 @@ def team_signature(team):
                 logo=file_hash(team['logo']), skin=file_hash(team['skin']) if team.get('skin') else None)
 
 
-def clip_keys(profile, renderer_signature):
+def clip_keys(profile, renderer_signature, field_renderer=None):
     teams = [team_signature(team) for team in profile['teams']]
     shared = dict(schema=1, renderer=renderer_signature,
                   engine=profile.get('render_engine', 'EEVEE'), resolution=100)
@@ -121,5 +121,10 @@ def clip_keys(profile, renderer_signature):
         'victory0': dict(kind='victory', team=teams[0], header=profile['event']),
         'victory1': dict(kind='victory', team=teams[1], header=profile['event']),
     }
-    return {key: hashlib.sha256(json.dumps(dict(**shared, **spec), sort_keys=True).encode()).hexdigest()
-            for key, spec in specifications.items()}
+    result = {key: hashlib.sha256(json.dumps(dict(**shared, **spec), sort_keys=True).encode()).hexdigest()
+              for key, spec in specifications.items()}
+    field = dict(schema=1, renderer=field_renderer or renderer_signature, kind='field',
+                 stadium=profile.get('stadium','Champions Field'), header=profile['event'], round=profile['round'],
+                 teams=[dict(name=t['name'], logo=t['logo']) for t in teams])
+    result['field'] = hashlib.sha256(json.dumps(field, sort_keys=True).encode()).hexdigest()
+    return result

@@ -88,6 +88,23 @@ def fit_logo(obj, image):
             vertex.co.z = (1 if vertex.co.z > 0 else -1) * 1.18 / max(1, aspect/1.35)
 
 
+def illuminate_logo(obj):
+    """Make screen crests self-lit while preserving their image and alpha mask."""
+    for material in obj.data.materials:
+        if not material.use_nodes:
+            continue
+        material['logo_emission_strength'] = 2.0
+        for node in material.node_tree.nodes:
+            if node.type == 'EMISSION':
+                node.inputs['Strength'].default_value = 2.0
+                node.label = 'Luminosidad del escudo · editable'
+            elif node.type == 'BSDF_PRINCIPLED':
+                texture = next((n for n in material.node_tree.nodes if n.type == 'TEX_IMAGE'), None)
+                if texture:
+                    material.node_tree.links.new(texture.outputs['Color'], node.inputs['Emission Color'])
+                node.inputs['Emission Strength'].default_value = 2.0
+
+
 def remove_template_cars():
     for collection in list(bpy.data.collections):
         if collection.name.startswith(('06 |', 'GANADOR A', 'GANADOR B', 'AUTO |')):
@@ -112,6 +129,9 @@ def add_team_car(scene, anchor, team, settings, folder):
     scene.collection.children.link(collection)
     root = next(o for o in collection.objects if o.get('rlcs_root'))
     root.parent = anchor
+    if scene.get('arena_revision', 0) >= 2:
+        root.scale *= 1.25
+        root.location *= 1.25
     root['rlcs_team'] = team
     root['rlcs_model'] = model
     body = chassis = None
@@ -200,6 +220,9 @@ def color_material(material, color):
     if p:
         p.inputs['Base Color'].default_value = (*color, 1)
         p.inputs['Emission Color'].default_value = (*color, 1)
+    for node in material.node_tree.nodes:
+        if node.type == 'EMISSION':
+            node.inputs['Color'].default_value = (*color, 1)
 
 
 def rgb(hex_value):
@@ -223,7 +246,7 @@ def position_pre_names(scene):
         obj = bpy.data.objects.get('NOMBRE | Equipo '+team)
         if not obj:
             continue
-        obj.location = (x, 1.2, 4.05)
+        obj.location = (x, -8.5 + math.sqrt(196-x*x) - .26, 3.7) if scene.get('arena_revision') else (x, 1.2, 4.05)
         obj.data.align_x = 'CENTER'
         obj.data.align_y = 'CENTER'
         obj.data.size = 0.46
@@ -250,6 +273,10 @@ def configure(config, folder):
         set_text(['ABREVIATURA | ' + team, 'TEXTO | Emblema MCI' if team == 'A' else 'TEXTO | Emblema NIP'], settings['short'])
         set_text(['NOMBRE | Placa ' + team, 'TEXTO | Jugador 1' if team == 'A' else 'TEXTO | Jugador 2'], settings['short'] + ' | ' + settings['name'])
         color_material(bpy.data.materials['TEAM_' + team + ' | Color editable'], rgb(settings['color']))
+        for arena_material in bpy.data.materials:
+            if arena_material.get('arena_team') == team:
+                gain = arena_material.get('arena_gain', 1)
+                color_material(arena_material, tuple(v*gain for v in rgb(settings['color'])))
         cars[team] = add_team_car(pre, bpy.data.objects['EQUIPO_' + team + ' | ANCLA'], team, settings, folder)
         logo_objects = [o for o in bpy.data.objects if o.type == 'MESH' and
                         (o.name.startswith('ESCUDO | ' + team + ' ') or o.name == 'LOGO | ' + ('PD' if team == 'A' else 'GOAT'))]
@@ -264,6 +291,7 @@ def configure(config, folder):
                 enable_object(obj, True)
         # A missing logo leaves the generic abbreviation visible.
         for obj in logo_objects:
+            illuminate_logo(obj)
             if obj.data.materials:
                 logo_materials[team] = (obj.data.materials[0], not obj.hide_render)
         if any(not o.hide_render for o in logo_objects):
@@ -281,6 +309,12 @@ def configure(config, folder):
     victory = bpy.data.scenes['02_VICTORIA_2s']
     copy_winner_car(cars[winner], victory, bpy.data.objects['GANADOR | ANCLA'])
     material = bpy.data.materials['TEAM_' + winner + ' | Color editable']
+    for obj in victory.objects:
+        if obj.name.startswith('ARENA |') and obj.type in ('MESH', 'CURVE'):
+            for index, arena_material in enumerate(obj.data.materials):
+                if arena_material.get('arena_team'):
+                    stem = arena_material.name.rsplit(' ', 1)[0]
+                    obj.data.materials[index] = bpy.data.materials[stem+' '+winner]
     for obj in victory.objects:
         if obj.type == 'MESH' and obj.name.startswith(('PANTALLA | Ganador', 'PANTALLA | Banda titulo', 'PLATAFORMA | Aro LED')):
             obj.data.materials.clear()
@@ -304,6 +338,8 @@ def configure(config, folder):
             if area.type == 'VIEW_3D':
                 space = area.spaces.active
                 space.shading.type = 'MATERIAL'
+                space.shading.use_scene_lights = True
+                space.shading.use_scene_world = True
                 space.overlay.show_overlays = False
                 space.region_3d.view_perspective = 'CAMERA'
     bpy.context.window.scene = bpy.data.scenes['01_PREPARTIDO_13s']
@@ -349,7 +385,7 @@ def main(job):
         scene.render.filepath = str(folder / (basename + '.png'))
         announce('Generando vista previa: ' + basename+' · '+engine)
         bpy.ops.render.render(write_still=True)
-        if config.get('video'):
+        if config.get('video') and basename not in config.get('cached_videos', []):
             announce('Exportando vídeo: ' + basename + '. Puede tardar varios minutos.')
             scene.render.resolution_percentage = config.get('resolution', 100)
             scene.cycles.samples = config.get('samples', 24)

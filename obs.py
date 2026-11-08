@@ -8,7 +8,7 @@ import struct
 import threading
 import uuid
 
-SCENES = dict(pre='Piruleta · Prepartido', game='Piruleta · Partido',
+SCENES = dict(field='Piruleta · Campo', pre='Piruleta · Prepartido', game='Piruleta · Partido',
               stats='Piruleta · Estadísticas', victory0='Piruleta · Victoria A',
               victory1='Piruleta · Victoria B', complete='Piruleta · Fin')
 SOURCE = 'Piruleta · Programa'

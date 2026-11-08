@@ -8,10 +8,10 @@ import time
 import zipfile
 from pathlib import Path
 from vendor.postmatch.app import Store, GameConnection, series_state, DEFAULT
-from vendor.overlay.app import normalize_config, swap_team_sides
+from vendor.overlay.app import normalize_config, swap_team_sides, PRIVATE_PLAYLISTS
 
 CARS = ('Octane', 'Fennec', 'Dominus')
-PHASES = ('pre', 'game', 'victory0', 'victory1', 'stats', 'complete')
+PHASES = ('field', 'pre', 'game', 'victory0', 'victory1', 'stats', 'complete')
 
 
 def defaults():
@@ -19,7 +19,7 @@ def defaults():
             'blender': r'C:\Program Files\Blender Foundation\Blender 4.4\blender.exe',
             'teams': [dict(name='', short='', logo='', color=color, car=car, skin='')
                       for color, car in zip(('#fa54b7', '#ffd14c'), CARS)],
-            'obs_port': 4455, 'api_port': 49123, 'render_engine': 'EEVEE'}
+            'obs_port': 4455, 'api_port': 49123, 'render_engine': 'EEVEE', 'stadium': 'Champions Field'}
 
 
 def detect_decal(path):
@@ -97,6 +97,9 @@ def validate(profile):
             # Untagged images have no reliable UV/model identifier. Require an explicit confirmation.
             if not model and team.get('skin_confirmed') != team['car']:
                 raise ValueError(f'Equipo {i+1}: no se puede identificar el coche de la calcomanía. Confirma su compatibilidad con {team["car"]}.')
+    if p.get('stadium', 'Champions Field') not in ('Champions Field','Mannfield','Estadio DFH'):
+        raise ValueError('Elige un estadio válido.')
+    p.setdefault('stadium', 'Champions Field')
     for field in ('obs_port', 'api_port'):
         p[field] = int(p.get(field, defaults()[field]))
         if not 1 <= p[field] <= 65535:
@@ -104,8 +107,10 @@ def validate(profile):
     return p
 
 
-def fingerprint(profile):
+def fingerprint(profile, include_stadium=True):
     data = {k: profile[k] for k in ('teams', 'event', 'round', 'bestof')}
+    if include_stadium and profile.get('stadium','Champions Field') != 'Champions Field':
+        data['stadium'] = profile['stadium']
     raw = json.dumps(data, sort_keys=True).encode()
     for team in profile['teams']:
         for field in ('logo', 'skin'):
@@ -123,6 +128,8 @@ class Studio(Store):
         self.paused = None
         self.revision = 0
         self.generation = 0
+        self.playlist_id = None
+        self.history_replay = False
         self.gameplay = False
         self.armed = False
         self.result_latched = False
@@ -130,7 +137,7 @@ class Studio(Store):
         self.manual_live = False
         self.stats_seconds = 10
         self.stats_enabled = True
-        self.scene_seconds = dict(pre=13, victory0=4, victory1=4)
+        self.scene_seconds = dict(field=15, pre=13, victory0=4, victory1=4)
         self.animation_order = [0, 1]
         self.history = []
         self.pending_victory = None
@@ -142,6 +149,8 @@ class Studio(Store):
     def configure(self, profile):
         p = validate(profile)
         with self.lock:
+            self.boost_usage.reset()
+            self.match_guid = None
             self.profile = p
             self.config = copy.deepcopy(DEFAULT)
             self.config.update(bestof=p['bestof'], event=p['event'], round=p['round'], auto_series=True)
@@ -178,10 +187,12 @@ class Studio(Store):
             self.revision += 1
             self.history.append(phase)
 
-    def start(self):
+    def start(self, opening='pre'):
+        if opening not in ('pre','field'):
+            raise ValueError('Elige Campo o Coches para comenzar.')
         with self.lock:
             self.armed = True
-            self.transition('pre', self.scene_seconds['pre'])
+            self.transition(opening, self.scene_seconds[opening])
 
     def after_stats(self):
         return 'complete' if series_state(self.config)['complete'] else 'game'
@@ -228,7 +239,7 @@ class Studio(Store):
                 if self.phase == 'game':
                     self.transition(self.after_stats())
             if self.deadline is not None and self.clock() >= self.deadline:
-                if self.phase == 'pre':
+                if self.phase in ('pre','field'):
                     self.transition('game')
                 elif self.phase.startswith('victory'):
                     self.stats_or_next()
@@ -261,7 +272,7 @@ class Studio(Store):
             elif action == 'cut':
                 if self.phase.startswith('victory'):
                     self.stats_or_next()
-                elif self.phase == 'pre':
+                elif self.phase in ('pre','field'):
                     self.transition('game')
                 elif self.phase == 'stats':
                     self.transition(self.after_stats())
@@ -278,6 +289,12 @@ class Studio(Store):
         if not isinstance(data, dict):
             return False
         with self.lock:
+            if event == 'MatchCreated':
+                self.playlist_id = None
+                self.history_replay = False
+            elif event == 'ReplayCreated':
+                self.history_replay = True
+                self.gameplay = False
             if event in ('MatchInitialized', 'CountdownBegin', 'RoundStarted', 'MatchStarted'):
                 self.gameplay = True
             elif event in ('MatchCreated', 'MatchDestroyed', 'MatchEnded', 'PodiumStart'):
@@ -285,12 +302,16 @@ class Studio(Store):
             elif event == 'UpdateState':
                 game = data.get('Game', {})
                 if isinstance(game, dict):
+                    value = game.get('PlaylistId')
+                    if value is not None:
+                        self.playlist_id = int(value) if str(value).isdigit() else None
                     if game.get('bHasWinner'):
                         self.gameplay = False
-                    elif data.get('Players') and not self.result_latched:
+                    elif data.get('Players') and not self.result_latched and not self.history_replay:
                         self.gameplay = True
             if event == 'MatchEnded':
-                if self.armed:
+                self.boost_usage.boundary(active=False)
+                if self.armed and not self.history_replay and (self.playlist_id is None or self.playlist_id in PRIVATE_PLAYLISTS):
                     self.finish(data.get('WinnerTeamNum'), data.get('MatchGuid'), automatic=True)
                 return True
             if event == 'PodiumStart':
@@ -301,6 +322,8 @@ class Studio(Store):
                     self.podium_due = self.clock() + 3
                 return True
             if event == 'MatchStarted':
+                self.boost_usage.reset()
+                self.match_guid = data.get('MatchGuid')
                 self.pending_victory = None
                 if self.pending_stats:
                     self.stats_cancelled = True
@@ -316,6 +339,8 @@ class Studio(Store):
                 teams = g.get('Teams', []) if isinstance(g, dict) else []
                 if (data.get('Players') and g.get('TimeSeconds', 0) > 0 and len(teams) == 2
                         and all(t.get('Score') == 0 for t in teams)):
+                    self.boost_usage.reset()
+                    self.match_guid = data.get('MatchGuid')
                     self.pending_victory = None
                     if self.pending_stats:
                         self.stats_cancelled = True
@@ -327,6 +352,10 @@ class Studio(Store):
             saved = copy.deepcopy(self.postmatch)
             live = copy.deepcopy(self.match) if self.manual_live else None
             try:
+                # Studio freezes old results across kickoffs. Do not let that frozen
+                # snapshot look like a new kickoff on every zero-score live packet.
+                if event == 'UpdateState':
+                    self.postmatch = None
                 accepted = super().ingest(packet)
             except (ValueError, TypeError, AttributeError, KeyError):
                 return False
@@ -343,6 +372,7 @@ class Studio(Store):
             key = str(guid) if guid else f'local-{self.match_number}'
             if self.result_latched or key in self.finished or series_state(self.config)['complete']:
                 return False
+            self.boost_usage.boundary(active=False)
             self.gameplay = False
             self.finished.add(key)
             self.result_latched = True
@@ -381,6 +411,8 @@ class Studio(Store):
 
     def reset_series(self):
         with self.lock:
+            self.boost_usage.reset()
+            self.match_guid = None
             for team in self.config['teams']:
                 team['wins'] = 0
             self.config['game'] = 1
@@ -406,6 +438,8 @@ class Studio(Store):
         with self.lock:
             if not self.armed or series_state(self.config)['complete']:
                 raise ValueError('Inicia una serie que no haya terminado antes de preparar el siguiente partido.')
+            self.boost_usage.reset()
+            self.match_guid = None
             self.match_number += 1
             self.result_latched = False
             self.match = dict(scores=[0, 0], time=300, overtime=False, players=[], target='', banner='')
@@ -446,7 +480,7 @@ class Studio(Store):
     def snapshot(self):
         with self.lock:
             state = super().snapshot()
-            state['studio'] = dict(phase=self.phase, revision=self.revision, gameplay=self.gameplay,
+            state['studio'] = dict(phase=self.phase, revision=self.revision, gameplay=self.gameplay and not self.history_replay and (self.playlist_id is None or self.playlist_id in PRIVATE_PLAYLISTS),
                                    remaining=max(0, self.deadline-self.clock()) if self.deadline is not None else None,
                                    held=self.paused is not None, manual=self.manual_live,
                                    waiting_podium=bool(self.pending_stats or self.pending_victory) and self.podium_due is None,

@@ -82,8 +82,8 @@ def mp4_duration(path):
 
 
 def imported_manifest(profile_fingerprint, files):
-    if set(files) != {'pre', 'victory0', 'victory1'}:
-        raise ValueError('Selecciona prepartido, victoria A y victoria B.')
+    if set(files) not in ({'pre','victory0','victory1'}, {'field','pre','victory0','victory1'}):
+        raise ValueError('Selecciona Campo, Coches, Victoria A y Victoria B.')
     paths = {key: str(Path(path).resolve()) for key, path in files.items()}
     durations = {key: mp4_duration(path) for key, path in paths.items()}
     digest = hashlib.sha256()

@@ -10,8 +10,12 @@ from tkinter import ttk, colorchooser, filedialog, messagebox
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import webbrowser
 
+from vendor.postmatch.basic_metrics import DEFAULT_METRICS, normalize_metrics
+
 ROOT = Path(__file__).resolve().parent
-APP_VERSION = '0.2.0'
+APP_VERSION = '1.0.0'
+# Private online, offline exhibition and local LAN lobby.
+PRIVATE_PLAYLISTS = frozenset((6, 8, 24))
 SERIES_FORMATS = (1, 2, 3, 4, 5, 7)
 MAX_LOGO_BYTES = 4_000_000
 MAX_LOGO_DATA_URL_CHARS = ((MAX_LOGO_BYTES + 2) // 3) * 4 + 64
@@ -38,21 +42,26 @@ def swap_team_sides(config):
     remap = {'pink': 'yellow', 'yellow': 'pink'}
     left, right = backgrounds['players0'], backgrounds['players1']
     backgrounds['players0'], backgrounds['players1'] = remap.get(right, right), remap.get(left, left)
+    for panel in ('boost', 'stats'):
+        a, b = backgrounds[panel+'0'], backgrounds[panel+'1']
+        backgrounds[panel+'0'], backgrounds[panel+'1'] = remap.get(b, b), remap.get(a, a)
     return swapped
 
 
 DEFAULT = {
+    'metrics': DEFAULT_METRICS,
     'event': 'TORNEO PIRULETA', 'round': 'GRAN FINAL', 'game': 1, 'bestof': 5,
     'teams': [{'name': 'PINK CANDY', 'logo': '', 'wins': 0},
               {'name': 'GOLDEN POP', 'logo': '', 'wins': 0}],
     'colors': {'pink': '#fa54b7', 'coral': '#ff8875', 'yellow': '#ffd14c',
                'dark': '#181426', 'text': '#ffffff'},
-    'brand_logo': '',
     'show_logos': True, 'show_players': True, 'show_stats': True,
     'show_boost': True, 'show_brand': False, 'show_events': True,
     'design': 'rounded', 'font': 'Verdana', 'scale': 100, 'opacity': 100,
     'x': 360, 'y': 0, 'auto_series': True, 'custom_css': '', 'api_port': 49123,
-    'panel_colors': {'boost': 'dark', 'stats': 'dark', 'players0': 'dark', 'players1': 'dark'},
+    'scoreboard_gradient': True, 'brand_logo': '',
+    'panel_colors': {'boost0': 'pink', 'boost1': 'yellow', 'stats0': 'pink', 'stats1': 'yellow',
+                     'players0': 'dark', 'players1': 'dark', 'boost': 'dark', 'stats': 'dark'},
     'panels': {'players0': [24, 180, 100], 'players1': [1601, 180, 100],
                'focus': [36, 880, 100], 'boost': [1695, 860, 120],
                'brand': [820, 154, 100], 'banner': [460, 370, 100]},
@@ -64,6 +73,7 @@ def normalize_config(raw):
     if not isinstance(raw, dict):
         raise ValueError('El perfil debe ser un objeto JSON.')
     c = copy.deepcopy(DEFAULT)
+    c['metrics'] = normalize_metrics(raw.get('metrics', DEFAULT_METRICS))
     for key in ('event', 'round', 'font'):
         if key in raw:
             c[key] = str(raw[key])[:120]
@@ -78,7 +88,13 @@ def normalize_config(raw):
             c[key] = bool(raw.get(key, c[key]))
     if raw.get('design') in ('angular', 'rounded', 'classic'):
         c['design'] = raw['design']
+    c['scoreboard_gradient'] = bool(raw.get('scoreboard_gradient', True))
     c['brand_logo'] = str(raw.get('brand_logo', ''))[:MAX_LOGO_DATA_URL_CHARS]
+    for panel in ('boost', 'stats'):
+        legacy = raw.get('panel_colors', {}).get(panel)
+        if legacy in c['colors']:
+            c['panel_colors'][panel+'0'] = legacy
+            c['panel_colors'][panel+'1'] = legacy
     c['custom_css'] = str(raw.get('custom_css', ''))[:50000]
     for key, value in raw.get('panel_colors', {}).items():
         if key in c['panel_colors'] and value in c['colors']:
@@ -113,12 +129,19 @@ class Store:
         self.banner_until = 0
         self.automatic = False
         self.last_update = 0
+        self.playlist_id = None
+        self.match_closed = False
+        self.history_replay = False
 
     def snapshot(self):
         with self.lock:
             if time.monotonic() > self.banner_until:
                 self.match['banner'] = ''
             return copy.deepcopy({'config': self.config, 'match': self.match,
+                                  'overlay_visible': (self.playlist_id in PRIVATE_PLAYLISTS
+                                      and not self.match_closed and not self.history_replay
+                                      and self.automatic and self.last_update > 0
+                                      and time.monotonic()-self.last_update < 5),
                                   'series': series_state(self.config),
                                   'connection': {'automatic': self.automatic,
                                                  'receiving': self.last_update > 0 and time.monotonic()-self.last_update < 5,
@@ -143,6 +166,9 @@ class Store:
                 g = d.get('Game', {})
                 if not isinstance(g, dict) or not isinstance(d.get('Players', []), list):
                     return False
+                # Missing/unknown playlist must never reveal the overlay.
+                value = g.get('PlaylistId')
+                self.playlist_id = int(value) if isinstance(value, (int, str)) and str(value).isdigit() else None
                 for t in g.get('Teams', []):
                     i = t.get('TeamNum')
                     if i in (0, 1):
@@ -163,6 +189,13 @@ class Store:
                 m['players'] = players
                 m['target'] = (g.get('Target') or {}).get('Name', '')
                 self.last_update = time.monotonic()
+            elif event == 'MatchCreated':
+                self.playlist_id = None
+                self.match_closed = False
+                self.history_replay = False
+                m['players'], m['target'], m['banner'] = [], '', ''
+            elif event == 'ReplayCreated':
+                self.history_replay = True
             elif event == 'ClockUpdatedSeconds':
                 m['time'] = int(d.get('TimeSeconds', 0))
                 m['overtime'] = bool(d.get('bOvertime', False))
@@ -171,16 +204,20 @@ class Store:
                 m['banner'] = ''
                 self.banner_until = 0
             elif event == 'MatchEnded':
+                self.match_closed = True
                 winner, guid = d.get('WinnerTeamNum'), d.get('MatchGuid')
                 if winner in (0, 1):
                     m['banner'] = 'VICTORIA · ' + self.config['teams'][winner]['name']
                     self.banner_until = time.monotonic() + 12
-                    if self.config['auto_series'] and guid and guid not in self.finished:
+                    if (self.config['auto_series'] and guid and guid not in self.finished
+                            and self.playlist_id in PRIVATE_PLAYLISTS and not self.history_replay):
                         self.finished.add(guid)
                         if not series_state(self.config)['complete']:
                             self.config['teams'][winner]['wins'] += 1
                             self.config['game'] = series_state(self.config)['game']
             elif event == 'MatchDestroyed':
+                self.playlist_id = None
+                self.match_closed = True
                 m['players'], m['target'] = [], ''
             else:
                 return False
@@ -261,6 +298,7 @@ class GameConnection:
 def preview_snapshot(store):
     """Example data for preview only; never writes to the live match or connection."""
     snapshot = store.snapshot()
+    snapshot['overlay_visible'] = True
     snapshot['match'] = {
         'scores': [2, 1], 'time': 193, 'overtime': False, 'target': 'PIRU', 'banner': '',
         'players': [{'Name': name, 'TeamNum': i//3, 'Boost': boost,
@@ -386,16 +424,21 @@ class App:
                                'yellow': 'Equipo B', 'text': 'Color del texto'}
         self.panel_color_vars = {}
         ttk.Label(backgrounds, text='Fondos vinculados a la paleta del marcador principal.').pack(anchor='w', pady=(0, 12))
-        for key, label in [('boost', 'Indicador de turbo'), ('stats', 'Caja de estadísticas'),
+        for key, label in [('boost0', 'Turbo · equipo A'), ('boost1', 'Turbo · equipo B'),
+                           ('stats0', 'Estadísticas · equipo A'), ('stats1', 'Estadísticas · equipo B'),
                            ('players0', 'Jugadores equipo A'), ('players1', 'Jugadores equipo B')]:
             row = ttk.Frame(backgrounds)
-            row.pack(fill='x', pady=6)
+            row.pack(fill='x', pady=3)
             ttk.Label(row, text=label, width=23).pack(side='left')
             var = tk.StringVar(value=self.palette_labels[self.store.config['panel_colors'][key]])
             self.panel_color_vars[key] = var
             selector = ttk.Combobox(row, textvariable=var, state='readonly', values=list(self.palette_labels.values()))
             selector.pack(side='left', fill='x', expand=True)
             selector.bind('<<ComboboxSelected>>', lambda event: self.apply())
+        self.vars['scoreboard_gradient'] = tk.BooleanVar(value=self.store.config['scoreboard_gradient'])
+        ttk.Checkbutton(backgrounds, text='  Fondo del marcador en degradado (desmarcado: plano)',
+                        variable=self.vars['scoreboard_gradient'], command=self.apply,
+                        style='Piruleta.TCheckbutton').pack(anchor='w', pady=6)
         ttk.Label(backgrounds, text='Al cambiar esos colores en Diseño, los fondos elegidos se actualizan también.',
                   wraplength=500, foreground='#b6a4c3').pack(anchor='w', pady=12)
         self.panel_vars = {}
@@ -442,7 +485,13 @@ class App:
             v = tk.BooleanVar(value=self.store.config[k])
             self.vars[k] = v
             ttk.Checkbutton(visibility, text='  '+label, variable=v, command=self.apply,
-                            style='Piruleta.TCheckbutton').pack(anchor='w', pady=5)
+                            style='Piruleta.TCheckbutton').pack(anchor='w', pady=2)
+        brand_row = ttk.Frame(visibility)
+        brand_row.pack(fill='x', pady=6)
+        ttk.Button(brand_row, text='PNG de la marca…', command=self.brand_logo).pack(side='left')
+        ttk.Button(brand_row, text='Restablecer PNG', command=self.reset_brand_logo).pack(side='left', padx=5)
+        ttk.Label(visibility, text='El nombre de la marca se toma del nombre del torneo en Textos.',
+                  wraplength=500, foreground='#b6a4c3').pack(anchor='w')
         ttk.Button(left, text='Aplicar diseño', style='Control.TButton', command=self.apply).pack(anchor='e')
         ttk.Label(right, text='CONTROL DEL PARTIDO', font=('Segoe UI', 13, 'bold')).pack(anchor='w', pady=(0, 10))
         ttk.Label(right, text='Formato de la serie', font=('Segoe UI', 10, 'bold')).pack(anchor='w')
@@ -551,6 +600,26 @@ class App:
     def clear_logo(self, i):
         with self.store.lock:
             self.store.config['teams'][i]['logo'] = ''
+
+    def brand_logo(self):
+        import base64
+        path = filedialog.askopenfilename(parent=self.root, filetypes=[('Imagen PNG', '*.png')])
+        if not path:
+            return
+        try:
+            data = Path(path).read_bytes()
+            if not data.startswith(b'\x89PNG\r\n\x1a\n'):
+                raise ValueError('Selecciona una imagen PNG válida.')
+            if len(data) > MAX_LOGO_BYTES:
+                raise ValueError('El tamaño máximo de la marca es de 4 MB.')
+            with self.store.lock:
+                self.store.config['brand_logo'] = 'data:image/png;base64,' + base64.b64encode(data).decode()
+        except (OSError, ValueError) as exc:
+            messagebox.showerror('No se pudo cargar el PNG', str(exc), parent=self.root)
+
+    def reset_brand_logo(self):
+        with self.store.lock:
+            self.store.config['brand_logo'] = ''
 
     def swap_teams(self):
         if not self.apply():
