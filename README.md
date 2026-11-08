@@ -181,3 +181,7 @@ Estadísticas muestra solo duración predeterminada, mostrar hasta ocultar, ocul
 Marcador incorpora fondos de turbo y estadísticas independientes para cada equipo y el cambio de fondo degradado/plano. Conserva los checks, las barras alineadas con los logos, el logo de torneo configurable y los perfiles anteriores. Las repeticiones de goles siguen visibles; los archivos de repetición y las partidas públicas identificadas se ocultan.
 
 Para ejecutar el código fuente con Campo rápido instala las dependencias de `requirements.txt`; el ejecutable portable ya las incluye. Las apps individuales no se modifican. Genera nuevos vídeos para usar la arena nueva y Campo.
+
+## Ajuste de escudos de Campo · 8 de noviembre de 2026
+
+Sincronizado con la última prueba de IntroRocketLeague: escudos desplazados hacia los laterales, con ancho de 4158 unidades y alto de 4573,8 dividido por su proporción. Incluye la reducción inicial, el alargado vertical y el aumento final del 5 % en ambos ejes. El seguimiento y los nombres de jugadores conservan su alineación en los tres estadios. La firma de Campo cambia automáticamente: los vídeos anteriores se conservan, pero se genera el nuevo diseño al preparar los vídeos. No es necesario volver a renderizar Coches ni las victorias si ya coinciden en la biblioteca.

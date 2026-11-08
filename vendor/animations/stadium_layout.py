@@ -33,7 +33,7 @@ def camera_position(t, stadium):
 
 
 def projected_keys(stadium, side, center_x, width, height):
-    center_y = -2400 if side == 'A' else 2400
+    center_y = -2600 if side == 'A' else 2600
     plane = [(center_x+height/2, center_y-width/2, 8), (center_x+height/2, center_y+width/2, 8),
              (center_x-height/2, center_y-width/2, 8), (center_x-height/2, center_y+width/2, 8)]
     keys = []
@@ -59,17 +59,17 @@ def projected_keys(stadium, side, center_x, width, height):
 
 
 def apply_team_layout(project):
-    # Twice the original 2200-unit logo width and height. Signatures prevent
+    # Current trial: 3960 x 4356, enlarged another 5% on each axis. Signatures prevent
     # repeated scaling and preserve manual edits until the roster/map changes.
     from .cinema import layer
     for side, aspect in [('A', 1741/1733), ('B', 1105/905)]:
         names = player_names(project['variables'].get('jugadores_'+side.lower(), ''))
-        signature = [2, project['stadium'], names]
+        signature = [5, project['stadium'], names]
         logo = next((x for x in project['elements'] if x['kind'] == 'image' and x['name'] == 'Escudo '+side), None)
         if logo is None:
             continue
         if logo.get('team_layout') != signature:
-            logo['keys'] = projected_keys(project['stadium'], side, 1500 if names else 0, 4400, 4400/aspect)
+            logo['keys'] = projected_keys(project['stadium'], side, 1500 if names else 0, 4158, 4573.8/aspect)
             logo['team_layout'] = signature
         role = 'players_'+side.lower()
         listing = next((x for x in project['elements'] if x.get('layout_role') == role), None)
