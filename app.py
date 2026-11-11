@@ -106,8 +106,12 @@ class App:
         self.build_control()
         self.populate(defaults())
         ttk.Label(root, textvariable=self.note, wraplength=1140, background='#14121e', foreground='#ffcf6a').pack(fill='x', padx=24, pady=(8, 2))
-        ttk.Label(root,text='v0.8 · Aplicación desarrollada por Bruno Reboredo Álvarez',background='#14121e',foreground='#b6a9c8',font=('Segoe UI',8)).pack(anchor='e',padx=24)
         ttk.Label(root, textvariable=self.status, background='#14121e', foreground='#b6a9c8').pack(fill='x', padx=24, pady=(0, 12))
+        ttk.Label(
+            root,
+            text='Versión 0.8\nAplicación desarrollada por Bruno Reboredo Álvarez',
+            justify='right', background='#14121e', foreground='#b6a9c8', font=('Segoe UI', 8),
+        ).pack(anchor='e', padx=24, pady=(0, 10))
         root.protocol('WM_DELETE_WINDOW', self.close)
         threading.Thread(target=self.obs_loop, daemon=True).start()
         root.after(100, self.tick)
