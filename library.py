@@ -114,6 +114,9 @@ def team_signature(team):
 
 def clip_keys(profile, renderer_signature, field_renderer=None):
     teams = [team_signature(team) for team in profile['teams']]
+    for team, signature in zip(profile['teams'], teams):
+        if not team.get('skin'):
+            signature['paint_finish'] = profile.get('paint_finish','Brillante')
     shared = dict(schema=1, renderer=renderer_signature,
                   engine=profile.get('render_engine', 'EEVEE'), resolution=100)
     specifications = {

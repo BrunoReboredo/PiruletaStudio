@@ -99,6 +99,20 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
  sample.match.players=[{Name:'Observed',TeamNum:1,Boost:50}];sample.match.target='Observed';overlay.render(sample);
  if(!overlay.document.getElementById('stage').classList.contains('flat'))throw Error('Flat scoreboard');
  if(overlay.document.getElementById('stage').style.getPropertyValue('--boost-bg')!==sample.config.colors.pink)throw Error('Side-specific boost background');
+ const roster=sample.postmatch.match.players;
+ for(const size of [1,2,3]){
+  sample.postmatch.match.players=[0,1].flatMap(t=>roster.filter(p=>p.TeamNum===t).slice(0,size));
+  statsWindow.render(sample);
+  if(stage.style.getPropertyValue('--team-size')!==String(size))throw Error('Roster layout '+size);
+  if(frame.querySelectorAll('.names .player').length!==size*2)throw Error('Roster player count '+size);
+ }
+ sample.postmatch.match.players=roster;
+ sample.studio={phase:'game',gameplay:true};sample.overlay_visible=true;
+ sample.config.show_events=true;sample.goal_effect={id:1,remaining:3000,team:1};overlay.render(sample);
+ if(!overlay.document.getElementById('stage').classList.contains('goal-playing'))throw Error('Goal curtain');
+ if(overlay.document.getElementById('goalcurtain').style.getPropertyValue('--goal-color')!==sample.config.colors.yellow)throw Error('Goal team color');
+ sample.goal_effect.remaining=0;overlay.render(sample);
+ if(overlay.document.getElementById('stage').classList.contains('goal-playing'))throw Error('Goal curtain cleanup');
  document.body.dataset.qa='PASS';
 }catch(e){document.body.dataset.qa='FAIL: '+e.message}})();
 </script>
@@ -120,6 +134,8 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
                 data, kind = program.encode(), 'text/html'
             elif route == '/overlay':
                 data, kind = (ROOT/'vendor/overlay/overlay.html').read_bytes(), 'text/html'
+            elif route == '/overlay-visibility.js':
+                data, kind = (ROOT/'vendor/postmatch/overlay-visibility.js').read_bytes(), 'application/javascript'
             elif route == '/boost-animation.js':
                 data, kind = (ROOT/'vendor/overlay/boost-animation.js').read_bytes(), 'application/javascript'
             elif route == '/audio/engine-start.wav':

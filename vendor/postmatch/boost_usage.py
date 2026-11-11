@@ -1,5 +1,6 @@
 """Conservative boost-use estimate from consecutive live spectator samples."""
 import math
+from .roster import player_key
 
 
 class BoostUsage:
@@ -19,12 +20,12 @@ class BoostUsage:
         if replay or not self.active:
             self.previous.clear()
             for player in players:
-                key = player.get('PrimaryId') or (player['TeamNum'], player.get('Name', ''))
+                key = player_key(player)
                 player['BoostUsed'] = self.totals.get(key)
             return
         current = {}
         for player in players:
-            key = player.get('PrimaryId') or (player['TeamNum'], player.get('Name', ''))
+            key = player_key(player)
             boost = player.get('Boost')
             valid = isinstance(boost, (int, float)) and math.isfinite(boost) and 0 <= boost <= 100
             valid = valid and not player.get('bDemolished', False) and player.get('bHasCar', True)

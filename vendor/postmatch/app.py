@@ -10,6 +10,7 @@ from tkinter import ttk, colorchooser, filedialog, messagebox
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import webbrowser
 from .boost_usage import BoostUsage
+from .roster import normalize_player, merge_players
 
 ROOT = Path(__file__).resolve().parent
 APP_VERSION = '0.1.0'
@@ -61,6 +62,7 @@ class Store:
         self.postmatch = None
         self.boost_usage = BoostUsage()
         self.match_guid = None
+        self.roster = []
 
     def snapshot(self):
         with self.lock:
@@ -101,12 +103,14 @@ class Store:
                 guid = d.get('MatchGuid')
                 if (guid and guid != self.match_guid) or (self.postmatch and m['scores'] == [0, 0] and m['time'] > 0 and d.get('Players')):
                     self.boost_usage.reset()
+                    self.roster = []
                     self.postmatch = None
                 if guid:
                     self.match_guid = guid
                 players = []
                 for player in d.get('Players', []):
-                    if not isinstance(player, dict) or player.get('TeamNum') not in (0, 1):
+                    player = normalize_player(player)
+                    if player is None:
                         continue
                     player = dict(player)
                     # Live spectator packets omit Boost when it is zero. Only
@@ -116,7 +120,12 @@ class Store:
                         player['Boost'] = 0
                     players.append(player)
                 self.boost_usage.update(players, replay=bool(g.get('bReplay', False)))
-                m['players'] = players
+                if not g.get('bReplay', False):
+                    self.roster = merge_players(self.roster, players)
+                else:
+                    identities = [{k:p[k] for k in ('Name','TeamNum','PrimaryId','Shortcut') if k in p} for p in players]
+                    self.roster = merge_players(self.roster, identities)
+                m['players'] = merge_players(self.roster)
                 m['target'] = (g.get('Target') or {}).get('Name', '')
                 # A new kickoff clears the previous result; menu/destruction packets do not.
                 if self.postmatch and players and m['scores'] == [0, 0] and m['time'] > 0:
@@ -151,14 +160,20 @@ class Store:
                     if new_result:
                         self.postmatch['wins'] = [team['wins'] for team in self.config['teams']]
             elif event in ('MatchStarted', 'MatchCreated', 'MatchInitialized'):
-                self.postmatch = None
-                self.boost_usage.reset()
-                self.match_guid = d.get('MatchGuid')
+                guid = d.get('MatchGuid')
+                if event != 'MatchInitialized' or guid != self.match_guid or self.postmatch is not None:
+                    self.postmatch = None
+                    self.roster = []
+                    self.boost_usage.reset()
+                    self.match_guid = guid
+                if event != 'MatchStarted':
+                    self.boost_usage.boundary(False)
             elif event in ('CountdownBegin', 'RoundStarted', 'MatchUnpaused', 'GoalReplayEnd'):
                 self.boost_usage.boundary(active=event in ('RoundStarted', 'MatchUnpaused'))
             elif event in ('MatchPaused', 'GoalReplayStart'):
                 self.boost_usage.boundary(active=False)
             elif event == 'MatchDestroyed':
+                self.roster = []
                 self.boost_usage.reset()
                 self.match_guid = None
                 m['players'], m['target'] = [], ''
@@ -253,6 +268,7 @@ def preview_snapshot(store):
         'config': copy.deepcopy(snapshot['config']), 'wins': [2, 1],
     }
     final = snapshot['postmatch']
+    final['visible'] = True
     final['match']['scores'] = [3, 1]
     final['config']['game'] = 3
     for i, player in enumerate(final['match']['players']):

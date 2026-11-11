@@ -18,7 +18,7 @@ NAMES = dict(field='Campo', pre='Prepartido', victory0='Victoria_A', victory1='V
 
 def renderer_signature():
     digest = hashlib.sha256()
-    for name in ('Plantilla.blend', 'models.blend', 'blender_job.py'):
+    for name in ('Plantilla.blend', 'models.blend', 'blender_job.py', 'paint_finishes.py'):
         digest.update(file_hash(ROOT/'vendor/animations'/name).encode())
     return digest.hexdigest()
 
@@ -64,6 +64,9 @@ def prepare(profile, destination, report, cancelled, library_dir=None):
         raise ValueError('Faltan vídeos en la biblioteca. Selecciona Blender para generar solo los que faltan.')
     output = Path(destination)/(time.strftime('%Y%m%d-%H%M%S')+'-'+uuid.uuid4().hex[:8])
     output.mkdir(parents=True)
+    # Generated projects and logs belong to the library, not the delivery folder.
+    work = library.root/'trabajos'/output.name
+    work.mkdir(parents=True,exist_ok=True)
     reused = []
     for key in ('field','pre', 'victory0', 'victory1'):
         if cancelled.is_set():
@@ -72,7 +75,7 @@ def prepare(profile, destination, report, cancelled, library_dir=None):
             reused.append(key)
             report('Reutilizando '+NAMES[key]+' de la biblioteca · sin render')
             continue
-        folder = output/('trabajo_'+key)
+        folder = work/('trabajo_'+key)
         folder.mkdir()
         if key == 'field':
             report('Generando Campo · exportación rápida')
@@ -89,7 +92,7 @@ def prepare(profile, destination, report, cancelled, library_dir=None):
             scene = 'Victoria'
         config = dict(template=str(ROOT/'vendor/animations/Plantilla.blend'), output=str(folder),
                       winner='A', victory_header=profile['event'], video=True, resolution=100,
-                      engine=profile.get('render_engine', 'EEVEE'), only_scenes=[scene], teams=teams)
+                      engine=profile.get('render_engine', 'EEVEE'), paint_finish=profile.get('paint_finish','Brillante'), only_scenes=[scene], teams=teams)
         report('Generando '+NAMES[key]+' · '+config['engine'])
         run_job(blender, config, folder, cancelled)
         clips[key] = library.save_clip(keys[key], folder/(scene+'.mp4'),
@@ -98,10 +101,39 @@ def prepare(profile, destination, report, cancelled, library_dir=None):
     files = {}
     for key, clip in clips.items():
         target = output/(NAMES[key]+'.mp4')
-        shutil.copy2(clip['path'], target)
+        pending=output/(target.name+'.tmp')
+        try:
+            shutil.copy2(clip['path'],pending)
+            os.replace(pending,target)
+        finally:
+            pending.unlink(missing_ok=True)
         files[key] = str(target)
     manifest = dict(fingerprint=signature, files=files, source='blender',
                     engine=profile.get('render_engine', 'EEVEE'), reused=reused,
                     durations={key: clip['duration'] for key, clip in clips.items()})
-    atomic_json(output/'manifest.json', manifest)
+    manifest['delivery'] = str(output.resolve())
+    manifest_path = work/'manifest.json'
+    atomic_json(manifest_path, manifest)
+    index_path = library.root/'preparaciones.json'
+    try:
+        index = json.loads(index_path.read_text(encoding='utf-8'))
+        if not isinstance(index,dict):
+            index = {}
+    except (OSError,ValueError):
+        index = {}
+    index[str(output.resolve())] = str(manifest_path)
+    atomic_json(index_path,index)
     return manifest
+
+def load_preparation(path, library_dir):
+    """Select any delivered MP4; read its metadata from the internal library."""
+    path = Path(path).resolve()
+    if path.suffix.lower() == '.json':
+        return json.loads(path.read_text(encoding='utf-8-sig'))
+    if path.suffix.lower() != '.mp4':
+        raise ValueError('Selecciona un MP4 de la preparación o un manifest.json antiguo.')
+    try:
+        index = json.loads((Path(library_dir)/'preparaciones.json').read_text(encoding='utf-8'))
+        return json.loads(Path(index[str(path.parent)]).read_text(encoding='utf-8'))
+    except (OSError,ValueError,KeyError,TypeError) as exc:
+        raise ValueError('No se encuentra la preparación interna. Puedes importar los cuatro MP4 como vídeos propios.') from exc

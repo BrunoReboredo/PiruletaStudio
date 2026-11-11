@@ -101,3 +101,28 @@ class StatisticsUpdateTests(unittest.TestCase):
         store.boost_usage.totals['player'] = 500
         store.reset_series()
         self.assertFalse(store.boost_usage.totals)
+
+    def test_partial_packets_and_shared_primary_id_keep_every_player(self):
+        store=Studio()
+        store.armed=True
+        def tick(players):
+            store.ingest(dict(Event='UpdateState',Data=dict(MatchGuid='one',Game=dict(TimeSeconds=100),Players=players)))
+        players=[dict(Name=n,PrimaryId='shared',TeamNum=t,Boost=100,bBoosting=True,Score=i*100) for i,(n,t) in enumerate([('A',0),('B',0),('C',0),('D',1),('E',1),('F',1)])]
+        tick(players)
+        tick([dict(players[0],Boost=80),dict(players[3],Boost=70)])
+        self.assertEqual(len(store.match['players']),6)
+        totals={p['Name']:p['BoostUsed'] for p in store.match['players']}
+        self.assertEqual(totals['A'],20)
+        self.assertEqual(totals['D'],30)
+        self.assertEqual(totals['B'],0)
+        store.ingest(dict(Event='MatchEnded',Data=dict(WinnerTeamNum=0,MatchGuid='one')))
+        self.assertEqual(len(store.postmatch['match']['players']),6)
+
+    def test_omitted_blue_team_and_duplicate_initialization_preserve_roster(self):
+        store=Studio()
+        def tick(players):
+            store.ingest(dict(Event='UpdateState',Data=dict(MatchGuid='one',Game={},Players=players)))
+        tick([dict(Name='Blue',Boost=100,bBoosting=True)])
+        store.ingest(dict(Event='MatchInitialized',Data=dict(MatchGuid='one')))
+        tick([dict(Name='Orange',TeamNum=1,Boost=100,bBoosting=True)])
+        self.assertEqual({p['Name']:p['TeamNum'] for p in store.match['players']},{'Blue':0,'Orange':1})

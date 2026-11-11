@@ -2,7 +2,7 @@ import json
 import mimetypes
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, parse_qs
 from vendor.postmatch.basic_metrics import CATALOG
 from vendor.overlay.app import preview_snapshot
 
@@ -21,6 +21,15 @@ def make_server(store, media, port=18767):
             route = urlsplit(self.path).path
             if route in ('/state', '/preview-state', '/metrics'):
                 state = preview_snapshot(store) if route == '/preview-state' else store.snapshot()
+                if route == '/preview-state':
+                    state['overlay_visible'] = True
+                    value=parse_qs(urlsplit(self.path).query).get('players',['3'])[0]
+                    size=int(value) if value in ('1','2','3') else 3
+                    for match in (state['match'], (state.get('postmatch') or {}).get('match', {})):
+                        if 'players' in match:
+                            match['players']=[p for t in (0,1) for p in [q for q in match['players'] if q['TeamNum']==t][:size]]
+                if route == '/preview-state' and state.get('postmatch'):
+                    state['postmatch']['visible'] = True
                 state['media'] = {key: '/media/'+key+'?v='+media.get('version', media['fingerprint']) for key in media.get('files', {})}
                 data = json.dumps(CATALOG if route == '/metrics' else state, ensure_ascii=False).encode()
                 self.send_response(200)
@@ -35,6 +44,7 @@ def make_server(store, media, port=18767):
                       '/overlay': ROOT/'vendor/overlay/overlay.html',
                       '/postmatch': ROOT/'vendor/postmatch/postmatch.html',
                       '/audio/engine-start.wav': ROOT/'vendor/audio/engine-start.wav',
+                      '/overlay-visibility.js': ROOT/'vendor/postmatch/overlay-visibility.js',
                       '/boost-animation.js': ROOT/'vendor/overlay/boost-animation.js',
                       '/assets/torneo.png': ROOT/'vendor/overlay/assets/torneo.png'}
             path = routes.get(route)

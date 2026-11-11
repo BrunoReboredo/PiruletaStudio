@@ -6,6 +6,8 @@ import os
 import sys
 import zipfile
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from paint_finishes import apply_finish
 
 
 def announce(message):
@@ -113,7 +115,7 @@ def remove_template_cars():
             bpy.data.collections.remove(collection)
 
 
-def add_team_car(scene, anchor, team, settings, folder):
+def add_team_car(scene, anchor, team, settings, folder, finish='Brillante'):
     model = settings.get('car', 'Octane' if team == 'A' else 'Fennec')
     if model not in ('Octane', 'Fennec', 'Dominus'):
         raise ValueError('Modelo de coche desconocido: ' + str(model))
@@ -155,7 +157,17 @@ def add_team_car(scene, anchor, team, settings, folder):
                 material['rlcs_custom_skin'] = bool(body)
                 p = next(n for n in material.node_tree.nodes if n.type == 'BSDF_PRINCIPLED')
                 texture = chassis if role == 'chassis' else body
-                if role in ('body', 'paint') or texture:
+                if role == 'paint':
+                    # Painted body variant: black trim, independent of team paint/decal.
+                    for link in list(p.inputs['Base Color'].links):
+                        material.node_tree.links.remove(link)
+                    p.inputs['Base Color'].default_value = (.004, .004, .004, 1)
+                    material.diffuse_color = (.004, .004, .004, 1)
+                    p.inputs['Metallic'].default_value = .25
+                    p.inputs['Roughness'].default_value = .3
+                    p.inputs['Emission Strength'].default_value = 0
+                    material['rlcs_painted_variant'] = 'Black'
+                elif role == 'body' or texture:
                     for link in list(p.inputs['Base Color'].links):
                         material.node_tree.links.remove(link)
                     if texture:
@@ -182,6 +194,8 @@ def add_team_car(scene, anchor, team, settings, folder):
                         p.inputs['Emission Strength'].default_value = 0
                         p.inputs['Metallic'].default_value = .35
                         p.inputs['Roughness'].default_value = .32
+                if role == 'body':
+                    apply_finish(material, finish, custom_skin=bool(settings.get('skin')))
                 materials[original] = material
             obj.data.materials[i] = materials[original]
     return collection
@@ -277,7 +291,7 @@ def configure(config, folder):
             if arena_material.get('arena_team') == team:
                 gain = arena_material.get('arena_gain', 1)
                 color_material(arena_material, tuple(v*gain for v in rgb(settings['color'])))
-        cars[team] = add_team_car(pre, bpy.data.objects['EQUIPO_' + team + ' | ANCLA'], team, settings, folder)
+        cars[team] = add_team_car(pre, bpy.data.objects['EQUIPO_' + team + ' | ANCLA'], team, settings, folder, config.get('paint_finish', 'Brillante'))
         logo_objects = [o for o in bpy.data.objects if o.type == 'MESH' and
                         (o.name.startswith('ESCUDO | ' + team + ' ') or o.name == 'LOGO | ' + ('PD' if team == 'A' else 'GOAT'))]
         if settings.get('logo'):

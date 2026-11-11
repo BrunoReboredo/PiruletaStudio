@@ -124,11 +124,12 @@ class MarkerPanel(OverlayApp):
         self.entry(design, 'Opacidad (%)', 'opacity', numeric=(10, 100))
         self.entry(design, 'Posición horizontal', 'x', numeric=(0, 1900))
         self.entry(design, 'Posición vertical', 'y', numeric=(0, 1000))
-        for k, label in [('show_logos', 'Escudos de equipos'), ('show_players', 'Turbo de todos los jugadores'), ('show_stats', 'Estadísticas del jugador en cámara'), ('show_boost', 'Turbo del jugador en cámara'), ('show_brand', 'Marca del torneo'), ('show_events', 'Aviso de victoria'), ('auto_series', 'Sumar victorias automáticamente (API)')]:
+        for k, label in [('show_logos', 'Escudos de equipos'), ('show_players', 'Turbo de todos los jugadores'), ('show_stats', 'Estadísticas del jugador en cámara'), ('show_boost', 'Turbo del jugador en cámara'), ('show_brand', 'Marca del torneo'), ('show_events', 'Cortina de gol'), ('auto_series', 'Sumar victorias automáticamente (API)')]:
             v = tk.BooleanVar(value=self.store.config[k])
             self.vars[k] = v
             ttk.Checkbutton(visibility, text='  '+label, variable=v, command=self.apply,
                             style='Marker.TCheckbutton').pack(anchor='w', pady=5)
+        ttk.Button(visibility, text='Probar cortina de gol', command=self.preview_goal).pack(anchor='w', pady=6)
         ttk.Button(left, text='Aplicar diseño', style='Control.TButton', command=self.apply).pack(anchor='e')
         ttk.Label(right, text='CONTROL DEL PARTIDO', font=('Segoe UI', 13, 'bold')).pack(anchor='w', pady=(0, 10))
         ttk.Label(right, text='Formato de la serie', font=('Segoe UI', 10, 'bold')).pack(anchor='w')
@@ -201,6 +202,10 @@ class MarkerPanel(OverlayApp):
             except (OSError, ValueError, TypeError, AttributeError, KeyError) as exc:
                 messagebox.showerror('No se pudo cargar el marcador', str(exc), parent=self.root)
 
+    def preview_goal(self):
+        import webbrowser
+        webbrowser.open(self.owner.url+'/overlay?preview=1&goal=1')
+
     def tournament_logo(self):
         path = filedialog.askopenfilename(title='Logo del torneo', filetypes=[('Logo PNG / JPG', '*.png *.jpg *.jpeg')])
         if not path:
@@ -230,6 +235,8 @@ class MarkerPanel(OverlayApp):
     def sync(self):
         super().sync()
         self.owner.refresh_metric_controls()
+        if hasattr(self.owner,'mvp_delay'):
+            self.owner.mvp_delay.set(str(self.store.config.get('mvp_delay',3)))
 
     def reconnect(self):
         try:

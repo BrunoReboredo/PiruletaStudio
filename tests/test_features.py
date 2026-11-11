@@ -167,6 +167,42 @@ class WorkflowTests(unittest.TestCase):
         s.ingest(dict(Event='MatchEnded',Data=dict(WinnerTeamNum=0,MatchGuid='public')))
         self.assertEqual(s.config['teams'][0]['wins'],0)
 
+    def test_goal_curtain_deduplicates_replays_and_survives_final_goal(self):
+        s=self.store
+        s.config.update(bestof=1,show_events=True)
+        s.transition('game')
+        s.ingest(dict(Event='UpdateState',Data=dict(MatchGuid='one',Game=dict(PlaylistId=6),Players=[])))
+        def event(name, **data):s.ingest(dict(Event=name,Data=data))
+        event('GoalScored',Scorer=dict(TeamNum=1))
+        event('GoalScored',Scorer=dict(TeamNum=1))
+        self.assertEqual(s.snapshot()['goal_effect']['id'],1)
+        event('GoalReplayStart')
+        event('GoalScored')
+        event('GoalReplayEnd')
+        event('GoalScored')
+        self.assertEqual(s.goal_sequence,1)
+        event('RoundStarted')
+        event('GoalScored')
+        self.assertEqual(s.goal_sequence,2)
+        event('MatchEnded',WinnerTeamNum=0,MatchGuid='one')
+        self.assertEqual(s.phase,'game')
+        self.assertTrue(s.snapshot()['overlay_visible'])
+        self.now=3
+        s.tick()
+        self.assertFalse(s.snapshot()['overlay_visible'])
+
+    def test_early_podium_uses_configured_delay_before_victory(self):
+        s=self.store
+        s.config.update(bestof=1,mvp_delay=5)
+        s.ingest(dict(Event='UpdateState',Data=dict(MatchGuid='one',Game={},Players=[])))
+        self.now=1
+        s.ingest(dict(Event='PodiumStart',Data=dict(MatchGuid='one')))
+        self.now=2
+        s.ingest(dict(Event='MatchEnded',Data=dict(WinnerTeamNum=0,MatchGuid='one')))
+        self.now=5.9;s.tick();self.assertEqual(s.phase,'game')
+        self.now=6;s.tick();self.assertEqual(s.phase,'victory0')
+        self.now=10;s.tick();self.assertEqual(s.phase,'stats')
+
     def test_swapped_team_plays_its_original_prepared_victory(self):
         s = self.store
         s.config['bestof'] = 1

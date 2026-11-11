@@ -1,3 +1,4 @@
+import json
 import copy
 from pathlib import Path
 import shutil
@@ -132,6 +133,31 @@ class LibraryTests(unittest.TestCase):
         with patch('render.renderer_signature', return_value='template-v2'):
             self.prepare()
         self.assertEqual(self.runner.call_count, 3)
+
+    def test_delivery_contains_only_mp4_and_can_be_reloaded(self):
+        from render import load_preparation
+        manifest=self.prepare()
+        folder=Path(manifest['files']['pre']).parent
+        self.assertEqual({p.name for p in folder.iterdir()},{'Campo.mp4','Prepartido.mp4','Victoria_A.mp4','Victoria_B.mp4'})
+        restored=load_preparation(manifest['files']['field'],self.library.root)
+        self.assertEqual(restored['files'],manifest['files'])
+        old=self.root/'old_manifest.json'
+        old.write_text(json.dumps(manifest))
+        self.assertEqual(load_preparation(old,self.library.root)['fingerprint'],manifest['fingerprint'])
+
+    def test_finish_changes_only_unskinned_car_clips(self):
+        before=clip_keys(self.profile,'renderer','field')
+        p=copy.deepcopy(self.profile)
+        p['paint_finish']='Mate'
+        after=clip_keys(p,'renderer','field')
+        self.assertEqual(before['field'],after['field'])
+        for key in ('pre','victory0','victory1'):
+            self.assertNotEqual(before[key],after[key])
+        for team in p['teams']:
+            team['skin']=team['logo']
+        a=clip_keys(p,'renderer','field')
+        p['paint_finish']='Anodizada'
+        self.assertEqual(a,clip_keys(p,'renderer','field'))
 
     def test_missing_field_uses_fast_export_without_blender(self):
         self.prepare()

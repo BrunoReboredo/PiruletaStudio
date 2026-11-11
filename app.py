@@ -15,12 +15,13 @@ import webbrowser
 
 from studio import Studio, GameConnection, defaults, validate, detect_decal, fingerprint, CARS
 from server import make_server
-from render import prepare, cached_clips
+from render import prepare, cached_clips, load_preparation
 from library import Library
 from obs import OBS, SCENES
 from marker import MarkerPanel, install_check_style
 from media import imported_manifest, mp4_duration
 from vendor.postmatch.basic_metrics import CATALOG, normalize_metrics
+from vendor.animations.paint_finishes import FINISHES
 
 ROOT = Path(__file__).resolve().parent
 if os.name == 'nt':
@@ -38,7 +39,7 @@ class App:
         self.library = Library(library_dir or LIBRARY)
         self.profile_fingerprints = set()
         self.legacy_fingerprints = set()
-        root.title('Piruleta Studio 0.7 · Control de retransmisión')
+        root.title('Piruleta Studio 0.8 · Control de retransmisión')
         self.icon_image = tk.PhotoImage(master=root, file=str(ROOT/'vendor/branding/piruleta.png'))
         root.iconphoto(True, self.icon_image)
         if os.name == 'nt':
@@ -105,6 +106,7 @@ class App:
         self.build_control()
         self.populate(defaults())
         ttk.Label(root, textvariable=self.note, wraplength=1140, background='#14121e', foreground='#ffcf6a').pack(fill='x', padx=24, pady=(8, 2))
+        ttk.Label(root,text='v0.8 · Aplicación desarrollada por Bruno Reboredo Álvarez',background='#14121e',foreground='#b6a9c8',font=('Segoe UI',8)).pack(anchor='e',padx=24)
         ttk.Label(root, textvariable=self.status, background='#14121e', foreground='#b6a9c8').pack(fill='x', padx=24, pady=(0, 12))
         root.protocol('WM_DELETE_WINDOW', self.close)
         threading.Thread(target=self.obs_loop, daemon=True).start()
@@ -203,6 +205,11 @@ class App:
         stadium = ttk.Combobox(prep, textvariable=self.vars['stadium'], values=('Champions Field','Mannfield','Estadio DFH'), state='readonly')
         stadium.grid(row=5, column=1, sticky='ew', pady=8)
         stadium.bind('<<ComboboxSelected>>', self.change_stadium)
+        ttk.Label(prep,text='Acabado común de los coches').grid(row=6,column=0,sticky='w')
+        finish=ttk.Combobox(prep,textvariable=self.vars['paint_finish'],values=FINISHES,state='readonly')
+        finish.grid(row=6,column=1,sticky='ew',pady=8)
+        finish.bind('<<ComboboxSelected>>',self.change_finish)
+        ttk.Label(prep,text='No modifica calcomanías personalizadas.').grid(row=6,column=2,sticky='w')
         row = ttk.Frame(prep)
         row.grid(row=3, column=0, columnspan=3, sticky='ew', pady=10)
         self.render_button = ttk.Button(row, text='Preparar vídeos · generar solo los que faltan', command=self.render, style='Accent.TButton')
@@ -315,6 +322,12 @@ class App:
         ttk.Button(scenes, text='Cortar escena actual', command=lambda: self.store.duration('cut')).pack(side='left', padx=8)
         ttk.Button(scenes, text='Añadir 10 s', command=lambda: self.store.duration('extend')).pack(side='left')
         ttk.Button(scenes, text='Pausar / reanudar temporizador', command=lambda: self.store.duration('hold')).pack(side='left', padx=8)
+        timing=ttk.Frame(parent)
+        timing.pack(fill='x',pady=8)
+        self.mvp_delay=tk.StringVar(value=str(self.store.config.get('mvp_delay',3)))
+        ttk.Label(timing,text='Espera tras el inicio del podio / MVP (s)').pack(side='left')
+        ttk.Spinbox(timing,from_=.5,to=30,increment=.5,textvariable=self.mvp_delay,width=7).pack(side='left',padx=8)
+        ttk.Button(timing,text='Aplicar espera',command=self.apply_mvp_delay).pack(side='left')
         obs = ttk.LabelFrame(parent, text='Opcional · cambiar también las escenas de OBS (WebSocket 5)')
         obs.pack(fill='x', pady=10)
         row = ttk.Frame(obs)
@@ -339,6 +352,29 @@ class App:
             os.startfile(self.library.root)
         except Exception as exc:
             self.error(exc)
+
+    def apply_mvp_delay(self):
+        try:
+            value=float(self.mvp_delay.get())
+            if not math.isfinite(value) or not .5 <= value <= 30:
+                raise ValueError('La espera tras MVP debe estar entre 0,5 y 30 segundos.')
+            with self.store.lock:
+                self.store.config['mvp_delay']=value
+            self.note.set(f'Espera tras el podio / MVP: {value:g} segundos.')
+        except ValueError as exc:
+            self.error(exc)
+
+    def change_finish(self, event=None):
+        if not self.profile:
+            return
+        if self.store.armed or (self.render_thread and self.render_thread.is_alive()):
+            self.vars['paint_finish'].set(self.profile.get('paint_finish','Brillante'))
+            return
+        self.profile['paint_finish']=self.vars['paint_finish'].get()
+        self.profile_fingerprints={fingerprint(self.profile)}
+        self.media.clear()
+        self.start_button.configure(state='disabled')
+        self.check_library()
 
     def change_stadium(self, event=None):
         if not self.profile:
@@ -585,10 +621,10 @@ class App:
         if self.store.armed or (self.render_thread and self.render_thread.is_alive()):
             self.error('Espera a terminar la preparación o configura una nueva serie.')
             return
-        path = filedialog.askopenfilename(title='Selecciona manifest.json de una preparación anterior', filetypes=[('Preparación', '*.json')])
+        path = filedialog.askopenfilename(title='Selecciona un MP4 de la preparación (o un manifest.json antiguo)', filetypes=[('Vídeo de preparación','*.mp4'),('Preparación antigua','*.json')])
         if path:
             try:
-                self.accept_manifest(json.loads(Path(path).read_text(encoding='utf-8')))
+                self.accept_manifest(load_preparation(path,self.library.root))
             except Exception as exc:
                 self.error(exc)
 

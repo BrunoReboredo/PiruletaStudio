@@ -49,7 +49,7 @@ def swap_team_sides(config):
 
 
 DEFAULT = {
-    'metrics': DEFAULT_METRICS,
+    'metrics': DEFAULT_METRICS, 'mvp_delay': 3.0,
     'event': 'TORNEO PIRULETA', 'round': 'GRAN FINAL', 'game': 1, 'bestof': 5,
     'teams': [{'name': 'PINK CANDY', 'logo': '', 'wins': 0},
               {'name': 'GOLDEN POP', 'logo': '', 'wins': 0}],
@@ -74,6 +74,10 @@ def normalize_config(raw):
         raise ValueError('El perfil debe ser un objeto JSON.')
     c = copy.deepcopy(DEFAULT)
     c['metrics'] = normalize_metrics(raw.get('metrics', DEFAULT_METRICS))
+    delay = float(raw.get('mvp_delay',3))
+    if not .5 <= delay <= 30:
+        raise ValueError('La espera tras MVP debe estar entre 0,5 y 30 segundos.')
+    c['mvp_delay'] = delay
     for key in ('event', 'round', 'font'):
         if key in raw:
             c[key] = str(raw[key])[:120]
@@ -132,14 +136,22 @@ class Store:
         self.playlist_id = None
         self.match_closed = False
         self.history_replay = False
+        self.goal_sequence = 0
+        self.goal_until = 0
+        self.goal_team = 0
+        self.goal_armed = True
+        self.in_goal_replay = False
 
     def snapshot(self):
         with self.lock:
             if time.monotonic() > self.banner_until:
                 self.match['banner'] = ''
-            return copy.deepcopy({'config': self.config, 'match': self.match,
+            goal_remaining = max(0, int((self.goal_until-time.monotonic())*1000))
+            return copy.deepcopy({'goal_effect': {'id': self.goal_sequence, 'remaining': goal_remaining,
+                                                 'team': self.goal_team}, 'config': self.config, 'match': self.match,
                                   'overlay_visible': (self.playlist_id in PRIVATE_PLAYLISTS
-                                      and not self.match_closed and not self.history_replay
+                                      and (not self.match_closed or (goal_remaining > 0 and self.config['show_events']))
+                                      and not self.history_replay
                                       and self.automatic and self.last_update > 0
                                       and time.monotonic()-self.last_update < 5),
                                   'series': series_state(self.config),
@@ -190,25 +202,44 @@ class Store:
                 m['target'] = (g.get('Target') or {}).get('Name', '')
                 self.last_update = time.monotonic()
             elif event == 'MatchCreated':
+                self.goal_armed = True
+                self.in_goal_replay = False
+                self.goal_until = 0
                 self.playlist_id = None
                 self.match_closed = False
                 self.history_replay = False
                 m['players'], m['target'], m['banner'] = [], '', ''
             elif event == 'ReplayCreated':
                 self.history_replay = True
+                self.goal_until = 0
             elif event == 'ClockUpdatedSeconds':
                 m['time'] = int(d.get('TimeSeconds', 0))
                 m['overtime'] = bool(d.get('bOvertime', False))
+            elif event == 'GoalReplayStart':
+                self.in_goal_replay = True
+                self.goal_armed = False
+            elif event in ('GoalReplayEnd', 'GoalReplayWillEnd'):
+                # Replay completion must not arm another celebration.
+                self.in_goal_replay = False if event == 'GoalReplayEnd' else self.in_goal_replay
+            elif event == 'RoundStarted':
+                self.in_goal_replay = False
+                self.goal_armed = True
             elif event == 'GoalScored':
-                # Goals update from UpdateState; no on-screen goal/scorer messages.
+                # No scorer message: only a three-second graphic transition.
                 m['banner'] = ''
-                self.banner_until = 0
+                if (self.config['show_events'] and self.playlist_id in PRIVATE_PLAYLISTS
+                        and not self.history_replay and not self.match_closed
+                        and self.goal_armed and not self.in_goal_replay):
+                    self.goal_armed = False
+                    self.goal_sequence += 1
+                    self.goal_until = time.monotonic() + 3
+                    scorer = d.get('Scorer') or {}
+                    self.goal_team = scorer.get('TeamNum', 0) if scorer.get('TeamNum') in (0, 1) else 0
             elif event == 'MatchEnded':
                 self.match_closed = True
                 winner, guid = d.get('WinnerTeamNum'), d.get('MatchGuid')
                 if winner in (0, 1):
-                    m['banner'] = 'VICTORIA · ' + self.config['teams'][winner]['name']
-                    self.banner_until = time.monotonic() + 12
+                    m['banner'] = ''
                     if (self.config['auto_series'] and guid and guid not in self.finished
                             and self.playlist_id in PRIVATE_PLAYLISTS and not self.history_replay):
                         self.finished.add(guid)
@@ -216,6 +247,7 @@ class Store:
                             self.config['teams'][winner]['wins'] += 1
                             self.config['game'] = series_state(self.config)['game']
             elif event == 'MatchDestroyed':
+                self.goal_until = 0
                 self.playlist_id = None
                 self.match_closed = True
                 m['players'], m['target'] = [], ''
@@ -481,11 +513,13 @@ class App:
         self.entry(design, 'Opacidad (%)', 'opacity', numeric=(10, 100))
         self.entry(design, 'Posición horizontal', 'x', numeric=(0, 1900))
         self.entry(design, 'Posición vertical', 'y', numeric=(0, 1000))
-        for k, label in [('show_logos', 'Escudos de equipos'), ('show_players', 'Turbo de todos los jugadores'), ('show_stats', 'Estadísticas del jugador en cámara'), ('show_boost', 'Turbo del jugador en cámara'), ('show_brand', 'Marca del torneo'), ('show_events', 'Aviso de victoria'), ('auto_series', 'Sumar victorias automáticamente (API)')]:
+        for k, label in [('show_logos', 'Escudos de equipos'), ('show_players', 'Turbo de todos los jugadores'), ('show_stats', 'Estadísticas del jugador en cámara'), ('show_boost', 'Turbo del jugador en cámara'), ('show_brand', 'Marca del torneo'), ('show_events', 'Cortina de gol'), ('auto_series', 'Sumar victorias automáticamente (API)')]:
             v = tk.BooleanVar(value=self.store.config[k])
             self.vars[k] = v
             ttk.Checkbutton(visibility, text='  '+label, variable=v, command=self.apply,
                             style='Piruleta.TCheckbutton').pack(anchor='w', pady=2)
+        ttk.Button(visibility, text='Probar cortina de gol', style='Control.TButton',
+                   command=lambda: webbrowser.open(self.url+'?preview=1&goal=1')).pack(anchor='w', pady=3)
         brand_row = ttk.Frame(visibility)
         brand_row.pack(fill='x', pady=6)
         ttk.Button(brand_row, text='PNG de la marca…', command=self.brand_logo).pack(side='left')

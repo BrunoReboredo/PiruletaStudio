@@ -4,7 +4,7 @@ Aplicación de escritorio para Windows que reúne Animaciones, Overlay y Estadí
 
 ## Abrir
 
-La actualización de esta entrega está en **portable/Piruleta Studio 0.7/Piruleta Studio.exe**. Las versiones anteriores se conservan en sus carpetas para no interrumpir trabajos en curso. Abre el ejecutable con doble clic y conserva `_internal` a su lado. No necesita Python instalado. Las compilaciones de desarrollo con `build.ps1` se crean en `portable/Piruleta Studio/`.
+La actualización de esta entrega está en **portable/Piruleta Studio 0.8/Piruleta Studio.exe**. Las versiones anteriores se conservan en sus carpetas para no interrumpir trabajos en curso. Abre el ejecutable con doble clic y conserva `_internal` a su lado. No necesita Python instalado. Las compilaciones de desarrollo con `build.ps1` se crean en `portable/Piruleta Studio/`.
 
 Para ejecutar el código fuente, con Python 3.11 o posterior (incluido Tkinter), abre **Abrir Piruleta Studio.cmd**. No necesita paquetes de pip. También puedes ejecutar `python app.py` desde esta carpeta.
 
@@ -77,7 +77,7 @@ Se guarda en **`%LOCALAPPDATA%/Piruleta Studio/Biblioteca`**, fuera de la carpet
 - Los vídeos se distinguen por equipos, nombres, abreviaturas, coches, colores, contenido de logos/calcomanías, cabecera, motor y revisión de plantilla/modelos/trabajador. Cambiar solo BO o ronda no vuelve a renderizar las animaciones.
 - Si cambia un equipo, se generan su victoria y el prepartido; se reutiliza la victoria del otro. Si intercambias los equipos entre series, pueden reutilizarse ambas victorias. El prepartido depende del orden de los dos equipos.
 - EEVEE y Cycles tienen vídeos independientes. No se utiliza un render de un motor como sustituto automático del otro.
-- Si los cuatro clips coinciden, se habilita el inicio sin necesitar ejecutar Blender. Si pulsas Preparar vídeos igualmente, se copian los clips recuperados a una nueva carpeta de salida junto a su manifest, sin render.
+- Si los cuatro clips coinciden, se habilita el inicio sin necesitar ejecutar Blender. Si pulsas Preparar vídeos igualmente, se copian los clips recuperados a una nueva carpeta de salida con su manifest guardado internamente, sin render.
 
 Las preparaciones de versiones anteriores siguen cargándose manualmente con **Cargar preparación**; no se buscan ni se atribuyen automáticamente a EEVEE. Los vídeos propios se siguen seleccionando desde su apartado independiente.
 
@@ -182,6 +182,12 @@ Marcador incorpora fondos de turbo y estadísticas independientes para cada equi
 
 Para ejecutar el código fuente con Campo rápido instala las dependencias de `requirements.txt`; el ejecutable portable ya las incluye. Las apps individuales no se modifican. Genera nuevos vídeos para usar la arena nueva y Campo.
 
-## Ajuste de escudos de Campo · 8 de noviembre de 2026
+## Versión 0.8 · novedades de Animaciones, Overlay y Estadísticas
 
-Sincronizado con la última prueba de IntroRocketLeague: escudos desplazados hacia los laterales, con ancho de 4158 unidades y alto de 4573,8 dividido por su proporción. Incluye la reducción inicial, el alargado vertical y el aumento final del 5 % en ambos ejes. El seguimiento y los nombres de jugadores conservan su alineación en los tres estadios. La firma de Campo cambia automáticamente: los vídeos anteriores se conservan, pero se genera el nuevo diseño al preparar los vídeos. No es necesario volver a renderizar Coches ni las victorias si ya coinciden en la biblioteca.
+- Animaciones: acabado común Brillante, Anodizada, Mate, Metálico (suave) o Perla anodizada. Conserva las calcomanías y sus materiales; los bordes pintados en negro son independientes. El acabado participa en la biblioteca solo para coches sin calcomanía. Campo mantiene exportación rápida y los nuevos tamaños/posiciones laterales de los escudos.
+- Entrega: la carpeta elegida recibe exclusivamente los cuatro MP4. Los proyectos Blender, recursos, registros y manifest permanecen en la biblioteca interna (`trabajos/`). Cargar preparación permite elegir cualquier MP4 de una entrega para recuperar sus datos internos; también acepta manifest.json antiguos. Si se mueve una entrega y no se encuentra su registro, se pueden importar los vídeos manualmente.
+- Marcador: cortina gráfica de gol de tres segundos, configurable en Elementos y con prueba independiente. No se duplica en la repetición y conserva el efecto del último gol; no muestra nombres de goleadores. Mantiene sus colores, fondos y barras alineadas.
+- Estadísticas: conservación de todos los jugadores ante paquetes parciales, identificadores compartidos y TeamNum azul omitido. Columnas adaptadas a 1v1, 2v2 y 3v3, crédito y versión. Entrada/salida de 500 ms en el panel de estadísticas, coordinada con el fundido a negro del programa. Se mantiene la selección de hasta seis básicas, sin incorporar periodos ni métricas avanzadas.
+- En Emisión y OBS puedes ajustar la espera tras el inicio del podio/MVP entre 0,5 y 30 segundos (predeterminado 3). Se conserva el orden final MVP → victoria completa → estadísticas. Si el aviso del podio llega antes del cierre del resultado se conserva su instante.
+
+Abre la 0.8 desde el launcher actualizado. Para ver los cambios de pintura y Campo prepara nuevos vídeos; los archivos anteriores no se modifican. Se mantienen Campo/Coches como elección de apertura, MP4 manuales, la misma URL para OBS y la vuelta a Datos al cerrar la serie.

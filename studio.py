@@ -19,7 +19,7 @@ def defaults():
             'blender': r'C:\Program Files\Blender Foundation\Blender 4.4\blender.exe',
             'teams': [dict(name='', short='', logo='', color=color, car=car, skin='')
                       for color, car in zip(('#fa54b7', '#ffd14c'), CARS)],
-            'obs_port': 4455, 'api_port': 49123, 'render_engine': 'EEVEE', 'stadium': 'Champions Field'}
+            'obs_port': 4455, 'api_port': 49123, 'render_engine': 'EEVEE', 'stadium': 'Champions Field', 'paint_finish': 'Brillante'}
 
 
 def detect_decal(path):
@@ -100,6 +100,10 @@ def validate(profile):
     if p.get('stadium', 'Champions Field') not in ('Champions Field','Mannfield','Estadio DFH'):
         raise ValueError('Elige un estadio válido.')
     p.setdefault('stadium', 'Champions Field')
+    from vendor.animations.paint_finishes import FINISHES
+    p.setdefault('paint_finish','Brillante')
+    if p['paint_finish'] not in FINISHES:
+        raise ValueError('Selecciona un acabado de pintura válido.')
     for field in ('obs_port', 'api_port'):
         p[field] = int(p.get(field, defaults()[field]))
         if not 1 <= p[field] <= 65535:
@@ -111,6 +115,8 @@ def fingerprint(profile, include_stadium=True):
     data = {k: profile[k] for k in ('teams', 'event', 'round', 'bestof')}
     if include_stadium and profile.get('stadium','Champions Field') != 'Champions Field':
         data['stadium'] = profile['stadium']
+    if profile.get('paint_finish','Brillante') != 'Brillante':
+        data['paint_finish'] = profile['paint_finish']
     raw = json.dumps(data, sort_keys=True).encode()
     for team in profile['teams']:
         for field in ('logo', 'skin'):
@@ -140,6 +146,13 @@ class Studio(Store):
         self.scene_seconds = dict(field=15, pre=13, victory0=4, victory1=4)
         self.animation_order = [0, 1]
         self.history = []
+        self.podium_at = None
+        self.podium_guid = None
+        self.goal_sequence = 0
+        self.goal_until = 0
+        self.goal_team = 0
+        self.goal_armed = True
+        self.in_goal_replay = False
         self.pending_victory = None
         self.pending_stats = False
         self.podium_due = None
@@ -150,12 +163,17 @@ class Studio(Store):
         p = validate(profile)
         with self.lock:
             self.boost_usage.reset()
+            self.roster = []
+            self.podium_at = None
+            self.podium_guid = None
+            self.goal_until = 0
+            self.goal_armed = True
             self.match_guid = None
             self.profile = p
             self.config = copy.deepcopy(DEFAULT)
             self.config.update(bestof=p['bestof'], event=p['event'], round=p['round'], auto_series=True)
             self.config['api_port'] = p['api_port']
-            self.config['show_events'] = False
+            self.config['show_events'] = True
             for i, team in enumerate(p['teams']):
                 mime = 'image/png' if Path(team['logo']).suffix.lower() == '.png' else 'image/jpeg'
                 logo = 'data:' + mime + ';base64,' + base64.b64encode(Path(team['logo']).read_bytes()).decode()
@@ -290,6 +308,30 @@ class Studio(Store):
             return False
         with self.lock:
             if event == 'MatchCreated':
+                self.podium_at = None
+                self.podium_guid = None
+                self.goal_armed = True
+                self.in_goal_replay = False
+                self.goal_until = 0
+            elif event in ('ReplayCreated','MatchDestroyed'):
+                self.goal_until = 0
+            elif event == 'GoalReplayStart':
+                self.in_goal_replay = True
+                self.goal_armed = False
+            elif event == 'GoalReplayEnd':
+                self.in_goal_replay = False
+            elif event == 'RoundStarted':
+                self.in_goal_replay = False
+                self.goal_armed = True
+            elif event == 'GoalScored':
+                if (self.armed and self.config['show_events'] and self.goal_armed and not self.in_goal_replay
+                        and not self.history_replay and not self.result_latched and self.playlist_id in PRIVATE_PLAYLISTS):
+                    self.goal_armed = False
+                    self.goal_sequence += 1
+                    self.goal_until = self.clock()+3
+                    scorer = data.get('Scorer') or {}
+                    self.goal_team = scorer.get('TeamNum',0) if scorer.get('TeamNum',0) in (0,1) else 0
+            if event == 'MatchCreated':
                 self.playlist_id = None
                 self.history_replay = False
             elif event == 'ReplayCreated':
@@ -316,13 +358,21 @@ class Studio(Store):
                 return True
             if event == 'PodiumStart':
                 guid = data.get('MatchGuid')
+                expected = self.postmatch.get('guid') if self.postmatch else self.match_guid
+                if guid and expected and str(guid) != str(expected):
+                    return False
+                if self.podium_at is None:
+                    self.podium_at,self.podium_guid = self.clock(),guid
                 if ((self.pending_stats or self.pending_victory) and not self.podium_seen and self.postmatch
                         and (not guid or self.postmatch['guid'] == str(guid))):
                     self.podium_seen = True
-                    self.podium_due = self.clock() + 3
+                    self.podium_due = self.podium_at + self.config.get('mvp_delay',3)
                 return True
             if event == 'MatchStarted':
+                self.podium_at = None
+                self.podium_guid = None
                 self.boost_usage.reset()
+                self.roster = []
                 self.match_guid = data.get('MatchGuid')
                 self.pending_victory = None
                 if self.pending_stats:
@@ -339,7 +389,10 @@ class Studio(Store):
                 teams = g.get('Teams', []) if isinstance(g, dict) else []
                 if (data.get('Players') and g.get('TimeSeconds', 0) > 0 and len(teams) == 2
                         and all(t.get('Score') == 0 for t in teams)):
+                    self.podium_at = None
+                    self.podium_guid = None
                     self.boost_usage.reset()
+                    self.roster = []
                     self.match_guid = data.get('MatchGuid')
                     self.pending_victory = None
                     if self.pending_stats:
@@ -402,6 +455,9 @@ class Studio(Store):
             self.pending_stats = automatic and self.stats_enabled and not self.pending_victory
             self.podium_due = None
             self.podium_seen = False
+            if self.podium_at is not None and (not guid or not self.podium_guid or str(guid) == str(self.podium_guid)):
+                self.podium_due = self.podium_at + self.config.get('mvp_delay',3)
+                self.podium_seen = True
             return True
 
     def swap_marker_sides(self):
@@ -412,6 +468,11 @@ class Studio(Store):
     def reset_series(self):
         with self.lock:
             self.boost_usage.reset()
+            self.roster = []
+            self.podium_at = None
+            self.podium_guid = None
+            self.goal_until = 0
+            self.goal_armed = True
             self.match_guid = None
             for team in self.config['teams']:
                 team['wins'] = 0
@@ -439,6 +500,11 @@ class Studio(Store):
             if not self.armed or series_state(self.config)['complete']:
                 raise ValueError('Inicia una serie que no haya terminado antes de preparar el siguiente partido.')
             self.boost_usage.reset()
+            self.roster = []
+            self.podium_at = None
+            self.podium_guid = None
+            self.goal_until = 0
+            self.goal_armed = True
             self.match_guid = None
             self.match_number += 1
             self.result_latched = False
@@ -480,10 +546,18 @@ class Studio(Store):
     def snapshot(self):
         with self.lock:
             state = super().snapshot()
+            state['app'] = dict(version='0.8.0',developer='Bruno Reboredo Álvarez')
+            state['goal_effect'] = dict(id=self.goal_sequence, remaining=max(0,int((self.goal_until-self.clock())*1000)),team=self.goal_team)
+            if state.get('postmatch'):
+                state['postmatch']['visible'] = self.phase == 'stats'
             state['studio'] = dict(phase=self.phase, revision=self.revision, gameplay=self.gameplay and not self.history_replay and (self.playlist_id is None or self.playlist_id in PRIVATE_PLAYLISTS),
                                    remaining=max(0, self.deadline-self.clock()) if self.deadline is not None else None,
                                    held=self.paused is not None, manual=self.manual_live,
                                    waiting_podium=bool(self.pending_stats or self.pending_victory) and self.podium_due is None,
                                    pending_victory=self.pending_victory,
                                    podium_remaining=max(0, self.podium_due-self.clock()) if self.podium_due is not None else None)
+            if (self.goal_until > self.clock() and self.config['show_events'] and self.phase == 'game'
+                    and not self.history_replay and (self.playlist_id is None or self.playlist_id in PRIVATE_PLAYLISTS)):
+                state['studio']['gameplay'] = True
+            state['overlay_visible'] = bool(state['studio']['gameplay'] and self.phase == 'game')
             return state
