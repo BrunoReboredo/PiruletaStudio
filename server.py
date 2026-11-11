@@ -2,11 +2,14 @@ import json
 import mimetypes
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit, parse_qs
+from urllib.parse import urlsplit, parse_qs, unquote
 from vendor.postmatch.basic_metrics import CATALOG
-from vendor.overlay.app import preview_snapshot
+from vendor.overlay.app import FONT_DIRECTORY, FONT_TYPES, MAX_FONT_BYTES, preview_snapshot
 
 ROOT = Path(__file__).resolve().parent
+OVERLAY_ASSETS = ROOT/'vendor/overlay/assets'
+ASSETS = {f'/assets/{name}': OVERLAY_ASSETS/name for name in
+          ('torneo.png', 'bigness-league.png', 'rcs.png', 'rck.png', 'montserrat.ttf')}
 
 
 def make_server(store, media, port=18767):
@@ -46,7 +49,10 @@ def make_server(store, media, port=18767):
                       '/audio/engine-start.wav': ROOT/'vendor/audio/engine-start.wav',
                       '/overlay-visibility.js': ROOT/'vendor/postmatch/overlay-visibility.js',
                       '/boost-animation.js': ROOT/'vendor/overlay/boost-animation.js',
-                      '/assets/torneo.png': ROOT/'vendor/overlay/assets/torneo.png'}
+                      **ASSETS}
+            if route.startswith('/fonts/'):
+                self.send_font(unquote(route.removeprefix('/fonts/')), head)
+                return
             path = routes.get(route)
             if route.startswith('/media/'):
                 value = media.get('files', {}).get(route[len('/media/'):])
@@ -95,6 +101,33 @@ def make_server(store, media, port=18767):
                             remaining -= len(chunk)
                 except (ConnectionError, BrokenPipeError):
                     pass
+        def send_font(self, filename, head):
+            font = FONT_DIRECTORY / filename
+            kind = FONT_TYPES.get(font.suffix.lower())
+            if not kind or any(c in filename for c in '/\\:\0') or font.is_symlink():
+                self.send_error(404)
+                return
+            try:
+                with font.open('rb') as file:
+                    data = file.read(MAX_FONT_BYTES + 1)
+            except OSError:
+                self.send_error(404)
+                return
+            mime, signatures = kind
+            if len(data) > MAX_FONT_BYTES or not data.startswith(signatures):
+                self.send_error(404)
+                return
+            self.send_response(200)
+            self.send_header('Content-Type', mime)
+            self.send_header('Content-Length', str(len(data)))
+            self.send_header('Cache-Control', 'no-cache')
+            self.end_headers()
+            if not head:
+                try:
+                    self.wfile.write(data)
+                except ConnectionError:
+                    pass
+
     try:
         return ThreadingHTTPServer(('127.0.0.1', port), Handler)
     except OSError:

@@ -75,7 +75,7 @@ function render(s){const result=s.postmatch;if(!result||result.visible!==true){v
  return `<div class="grid row">${cells(0)}<div class="label">${esc(metric.label.toUpperCase())}${metric.unit&& !['%','texto','sí/no','puesto'].includes(metric.unit)?`<small>${esc(metric.unit)}</small>`:''}<div class="compare" style="--share:${share}%;${known?'':'visibility:hidden'}"><i></i><b></b></div><small>${totals}</small></div>${cells(1)}</div>`}).join('');
  const period={match:'PARTIDO',series:'SERIE',tournament:'TORNEO'}[scope];
  document.querySelector('.foot > span').textContent='ESTADÍSTICAS · '+period;
- $('appversion').textContent='v'+(s.app?.version||'0.8.0').replace(/\.0$/,'');$('footnote').textContent='— = SIN DATOS';$('preview').textContent=preview?'VISTA PREVIA · DATOS DE EJEMPLO':'';
+ $('appversion').textContent='v'+(s.app?.version||'0.8.1').replace(/\.0$/,'');$('footnote').textContent='— = SIN DATOS';$('preview').textContent=preview?'VISTA PREVIA · DATOS DE EJEMPLO':'';
 }
 async function poll(){try{if(!catalog.length){const definitions=await fetch('/metrics',{cache:'no-store'});catalog=await definitions.json()}const r=await fetch(preview?'/preview-state?players='+(new URLSearchParams(location.search).get('players')||'3'):'/state',{cache:'no-store'});if(r.ok)render(await r.json())}catch(e){}setTimeout(poll,250)}poll();
 </script></html>

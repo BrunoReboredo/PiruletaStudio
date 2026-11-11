@@ -4,7 +4,7 @@ Aplicación de escritorio para Windows que reúne Animaciones, Overlay y Estadí
 
 ## Abrir
 
-La actualización de esta entrega está en **portable/Piruleta Studio 0.8/Piruleta Studio.exe**. Las versiones anteriores se conservan en sus carpetas para no interrumpir trabajos en curso. Abre el ejecutable con doble clic y conserva `_internal` a su lado. No necesita Python instalado. Las compilaciones de desarrollo con `build.ps1` se crean en `portable/Piruleta Studio/`.
+La actualización de esta entrega está en **portable/Piruleta Studio 0.8.1/Piruleta Studio.exe**. Las versiones anteriores se conservan en sus carpetas para no interrumpir trabajos en curso. Abre el ejecutable con doble clic y conserva `_internal` a su lado. No necesita Python instalado. Las compilaciones de desarrollo con `build.ps1` se crean en `portable/Piruleta Studio/`.
 
 Para ejecutar el código fuente, con Python 3.11 o posterior (incluido Tkinter), abre **Abrir Piruleta Studio.cmd**. No necesita paquetes de pip. También puedes ejecutar `python app.py` desde esta carpeta.
 
@@ -156,7 +156,7 @@ El programa reproduce un fragmento de 8 segundos de arranque de motor al comenza
 
 ## Versión 0.6.1
 
-Las nuevas series usan marcador rounded, tipografía Verdana y marca del torneo oculta. Puedes volver a mostrarla en Marcador → Elementos. En Marcador → Textos, Logo del torneo permite elegir un PNG/JPG de hasta 4 MB o restablecer el logo de Piruleta. Se guarda al guardar el perfil del marcador; cargar perfiles existentes conserva sus ajustes explícitos.
+Las nuevas series usan marcador rounded y tipografía Verdana. La cabecera se configura en Marcador → Textos.
 
 La generación de Blender elimina los discos de fondo detrás de los escudos y conserva los logos. Prepara nuevos vídeos para aplicar este cambio; los vídeos ya renderizados no se modifican.
 
@@ -168,7 +168,7 @@ La ventana y el ejecutable usan el icono de la piruleta del logo; el icono multi
 
 Se integran los cambios de PostMatchRocketLeague: la última fila muestra TURBO USADO, una estimación acumulada por jugador (100 equivale a un depósito). Solo cuenta las bajadas observadas al usar turbo; las recogidas entre muestras pueden ocultar parte del consumo. Descarta comparaciones durante repeticiones, pausas, demoliciones y cambios de ronda. Si faltan datos se muestra un guion; conectarse a mitad de partido solo permite medir lo observado desde entonces.
 
-Studio conserva el total del partido finalizado mientras se muestran las escenas y lo reinicia para el siguiente partido. Mantiene sus colores en directo, perfiles, logo del torneo y orden MVP → victoria → estadísticas. No es necesario regenerar los vídeos de Blender.
+Studio conserva el total del partido finalizado mientras se muestran las escenas y lo reinicia para el siguiente partido. Mantiene sus colores en directo, perfiles y orden MVP → victoria → estadísticas. No es necesario regenerar los vídeos de Blender.
 
 ## Versión 0.7 · integración de las tres apps
 

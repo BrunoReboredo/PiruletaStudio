@@ -3,8 +3,9 @@ from pathlib import Path
 import hashlib
 import copy
 ROOT = Path(__file__).resolve().parent/'vendor/animations'
+LOGO_START_SECONDS = 6
 def signature():
-    h=hashlib.sha256()
+    h=hashlib.sha256(f'logo-start={LOGO_START_SECONDS}'.encode('ascii'))
     for name in ('cinema.py','cinema_fast.py','cinema_preview.py','stadium_layout.py'):
         h.update((ROOT/name).read_bytes())
     for p in sorted((ROOT/'assets/stadiums').glob('*')):
@@ -18,7 +19,7 @@ def project(profile):
     for side, team in zip(('A','B'),profile['teams']):
         for item in p['elements']:
             if item['kind']=='image' and item['name']=='Escudo '+side:
-                item.update(path=team['logo'],enabled=True)
+                item.update(path=team['logo'], enabled=True, start=LOGO_START_SECONDS)
     return p
 def render(profile, folder, report, cancelled):
     from vendor.animations.cinema_fast import export

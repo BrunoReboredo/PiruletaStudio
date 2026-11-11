@@ -15,7 +15,7 @@ PHASES = ('field', 'pre', 'game', 'victory0', 'victory1', 'stats', 'complete')
 
 
 def defaults():
-    return {'bestof': 5, 'event': 'TORNEO PIRULETA', 'round': 'FINAL',
+    return {'bestof': 5, 'event': 'TORNEO PIRULETA', 'round': 'FINAL · PARTIDO [GAME] · BO[SERIE]',
             'blender': r'C:\Program Files\Blender Foundation\Blender 4.4\blender.exe',
             'teams': [dict(name='', short='', logo='', color=color, car=car, skin='')
                       for color, car in zip(('#fa54b7', '#ffd14c'), CARS)],
@@ -133,6 +133,8 @@ class Studio(Store):
         self.deadline = None
         self.paused = None
         self.revision = 0
+        self.field_opening = False
+        self.field_opening_elapsed = False
         self.generation = 0
         self.playlist_id = None
         self.history_replay = False
@@ -200,6 +202,8 @@ class Studio(Store):
                 self.pending_stats = False
                 self.podium_due = None
             self.phase = phase
+            self.field_opening = False
+            self.field_opening_elapsed = False
             self.deadline = self.clock() + seconds if seconds is not None else None
             self.paused = None
             self.revision += 1
@@ -210,7 +214,8 @@ class Studio(Store):
             raise ValueError('Elige Campo o Coches para comenzar.')
         with self.lock:
             self.armed = True
-            self.transition(opening, self.scene_seconds[opening])
+            self.transition(opening, 15 if opening == 'field' else self.scene_seconds[opening])
+            self.field_opening = opening == 'field'
 
     def after_stats(self):
         return 'complete' if series_state(self.config)['complete'] else 'game'
@@ -258,7 +263,9 @@ class Studio(Store):
                     self.transition(self.after_stats())
             if self.deadline is not None and self.clock() >= self.deadline:
                 if self.phase in ('pre','field'):
+                    completed_field_opening = self.field_opening
                     self.transition('game')
+                    self.field_opening_elapsed = completed_field_opening
                 elif self.phase.startswith('victory'):
                     self.stats_or_next()
                 elif self.phase == 'stats':
@@ -546,13 +553,14 @@ class Studio(Store):
     def snapshot(self):
         with self.lock:
             state = super().snapshot()
-            state['app'] = dict(version='0.8.0',developer='Bruno Reboredo Álvarez')
+            state['app'] = dict(version='0.8.1',developer='Bruno Reboredo Álvarez')
             state['goal_effect'] = dict(id=self.goal_sequence, remaining=max(0,int((self.goal_until-self.clock())*1000)),team=self.goal_team)
             if state.get('postmatch'):
                 state['postmatch']['visible'] = self.phase == 'stats'
             state['studio'] = dict(phase=self.phase, revision=self.revision, gameplay=self.gameplay and not self.history_replay and (self.playlist_id is None or self.playlist_id in PRIVATE_PLAYLISTS),
                                    remaining=max(0, self.deadline-self.clock()) if self.deadline is not None else None,
                                    held=self.paused is not None, manual=self.manual_live,
+                                   field_opening_elapsed=self.field_opening_elapsed,
                                    waiting_podium=bool(self.pending_stats or self.pending_victory) and self.podium_due is None,
                                    pending_victory=self.pending_victory,
                                    podium_remaining=max(0, self.podium_due-self.clock()) if self.podium_due is not None else None)

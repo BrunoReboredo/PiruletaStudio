@@ -39,7 +39,7 @@ class App:
         self.library = Library(library_dir or LIBRARY)
         self.profile_fingerprints = set()
         self.legacy_fingerprints = set()
-        root.title('Piruleta Studio 0.8 · Control de retransmisión')
+        root.title('Piruleta Studio 0.8.1 · Control de retransmisión')
         self.icon_image = tk.PhotoImage(master=root, file=str(ROOT/'vendor/branding/piruleta.png'))
         root.iconphoto(True, self.icon_image)
         if os.name == 'nt':
@@ -61,7 +61,7 @@ class App:
         style.configure('TButton', background='#3b304b', padding=(12, 7))
         style.map('TButton', background=[('active', '#65415d')])
         style.configure('Accent.TButton', background='#e749a0', foreground='white', font=('Segoe UI', 10, 'bold'))
-        style.configure('Title.TLabel', background='#14121e', font=('Segoe UI', 25, 'bold'))
+        style.configure('Title.TLabel', foreground='#FA54B7', background='#14121e', font=('Segoe UI', 25, 'bold'))
         self.store = Studio()
         self.game = GameConnection(self.store)
         self.media = {}
@@ -94,7 +94,7 @@ class App:
         self.control = ttk.Frame(self.control_tab, padding=12)
         self.control.pack(fill='both', expand=True)
         self.category_pages = {}
-        self.tabs.add(self.setup_tab, text='  1 · Datos de la serie  ')
+        self.tabs.add(self.setup_tab, text='  1 · Datos de los equipos  ')
         self.tabs.add(self.control_tab, text='  2 · Panel de control  ', state='disabled')
         def wheel(event):
             if event.widget.winfo_class() in ('TCombobox', 'TSpinbox', 'Text'):
@@ -109,7 +109,7 @@ class App:
         ttk.Label(root, textvariable=self.status, background='#14121e', foreground='#b6a9c8').pack(fill='x', padx=24, pady=(0, 12))
         ttk.Label(
             root,
-            text='Versión 0.8\nAplicación desarrollada por Bruno Reboredo Álvarez',
+            text='Versión 0.8.1\nAplicación desarrollada por Bruno Reboredo Álvarez',
             justify='right', background='#14121e', foreground='#b6a9c8', font=('Segoe UI', 8),
         ).pack(anchor='e', padx=24, pady=(0, 10))
         root.protocol('WM_DELETE_WINDOW', self.close)
@@ -154,18 +154,10 @@ class App:
             self.entry(box, 'Calcomanía', fields['skin'], 5, lambda i=i: self.pick_team(i, 'skin'))
             ttk.Button(box, text='Confirmar coche de la calcomanía', command=lambda i=i: self.confirm_skin(i)).grid(row=6, column=0, columnspan=3, sticky='w', pady=6)
         ttk.Label(self.setup, text='* Obligatorio. Calcomanías opcionales: solo Octane, Fennec y Dominus. ZIP o imagen; sin conversión entre coches.', wraplength=1080).pack(anchor='w', pady=12)
-        series = ttk.LabelFrame(self.setup, text='Datos de la serie')
-        series.pack(fill='x', pady=6)
-        series.columnconfigure(1, weight=1)
-        self.entry(series, 'Torneo / cabecera', self.vars['event'], 0)
-        self.entry(series, 'Ronda', self.vars['round'], 1)
-        ttk.Label(series, text='Duración de la serie *').grid(row=2, column=0, sticky='w')
-        ttk.Combobox(series, textvariable=self.vars['bestof'], values=(1, 2, 3, 4, 5, 7), state='readonly', width=8).grid(row=2, column=1, sticky='w', pady=6)
-        ttk.Label(series, text='BO2 y BO4 pueden acabar en empate.').grid(row=2, column=2)
         buttons = ttk.Frame(self.setup)
         buttons.pack(fill='x', pady=14)
-        ttk.Button(buttons, text='Guardar datos…', command=self.save).pack(side='left')
-        ttk.Button(buttons, text='Cargar datos…', command=self.load).pack(side='left', padx=8)
+        ttk.Button(buttons, text='Guardar equipos…', command=self.save).pack(side='left')
+        ttk.Button(buttons, text='Cargar equipos…', command=self.load).pack(side='left', padx=8)
         self.continue_button = ttk.Button(buttons, text='Continuar al panel →', style='Accent.TButton', command=self.configure)
         self.continue_button.pack(side='right')
 
@@ -521,14 +513,14 @@ class App:
     def save(self):
         try:
             profile = self.collect()
-            path = filedialog.asksaveasfilename(defaultextension='.json', filetypes=[('Datos de serie', '*.json')])
+            path = filedialog.asksaveasfilename(defaultextension='.json', filetypes=[('Datos de los equipos', '*.json')])
             if path:
                 Path(path).write_text(json.dumps(profile, ensure_ascii=False, indent=2), encoding='utf-8')
         except Exception as exc:
             self.error(exc)
 
     def load(self):
-        path = filedialog.askopenfilename(filetypes=[('Datos de serie', '*.json')])
+        path = filedialog.askopenfilename(filetypes=[('Datos de los equipos', '*.json')])
         if path:
             try:
                 profile = json.loads(Path(path).read_text(encoding='utf-8-sig'))

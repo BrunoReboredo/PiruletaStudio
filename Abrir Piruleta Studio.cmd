@@ -1,7 +1,7 @@
 @echo off
 cd /d "%~dp0"
-if exist "portable\Piruleta Studio 0.8\Piruleta Studio.exe" (
-    start "" "portable\Piruleta Studio 0.8\Piruleta Studio.exe"
+if exist "portable\Piruleta Studio 0.8.1 Campo\Piruleta Studio.exe" (
+    start "" "portable\Piruleta Studio 0.8.1 Campo\Piruleta Studio.exe"
     exit /b
 )
 python app.py

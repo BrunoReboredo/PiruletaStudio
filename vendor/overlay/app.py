@@ -1,6 +1,8 @@
 """Piruleta - Overlay. Python 3.11+, standard library only."""
 import copy
 import json
+import os
+import re
 from pathlib import Path
 import socket
 import threading
@@ -19,6 +21,18 @@ PRIVATE_PLAYLISTS = frozenset((6, 8, 24))
 SERIES_FORMATS = (1, 2, 3, 4, 5, 7)
 MAX_LOGO_BYTES = 4_000_000
 MAX_LOGO_DATA_URL_CHARS = ((MAX_LOGO_BYTES + 2) // 3) * 4 + 64
+
+
+FONT_DIRECTORY = Path(os.environ.get('LOCALAPPDATA', Path.home())) / 'PiruletaOverlay' / 'fonts'
+STANDARD_FONTS = ('Montserrat', 'Arial', 'Segoe UI', 'Verdana', 'Trebuchet MS', 'Impact')
+FONT_TYPES = {
+    '.ttf': ('font/ttf', (b'\x00\x01\x00\x00', b'true')),
+    '.otf': ('font/otf', (b'OTTO',)),
+    '.woff': ('font/woff', (b'wOFF',)),
+    '.woff2': ('font/woff2', (b'wOF2',)),
+}
+CUSTOM_FONT_PREFIX = 'Personalizada · '
+MAX_FONT_BYTES = 16 * 1024 * 1024
 
 
 def series_state(config):
@@ -56,16 +70,42 @@ DEFAULT = {
     'colors': {'pink': '#fa54b7', 'coral': '#ff8875', 'yellow': '#ffd14c',
                'dark': '#181426', 'text': '#ffffff'},
     'show_logos': True, 'show_players': True, 'show_stats': True,
-    'show_boost': True, 'show_brand': False, 'show_events': True,
+    'show_boost': True, 'show_events': True,
     'design': 'rounded', 'font': 'Verdana', 'scale': 100, 'opacity': 100,
     'x': 360, 'y': 0, 'auto_series': True, 'custom_css': '', 'api_port': 49123,
-    'scoreboard_gradient': True, 'brand_logo': '',
+    'scoreboard_gradient': True,
+    'goal_style': 'Torneo Piruleta', 'design_presets': {}, 'rck_layout_revision': 2,
     'panel_colors': {'boost0': 'pink', 'boost1': 'yellow', 'stats0': 'pink', 'stats1': 'yellow',
                      'players0': 'dark', 'players1': 'dark', 'boost': 'dark', 'stats': 'dark'},
     'panels': {'players0': [24, 180, 100], 'players1': [1601, 180, 100],
                'focus': [36, 880, 100], 'boost': [1695, 860, 120],
-               'brand': [820, 154, 100], 'banner': [460, 370, 100]},
+               'banner': [460, 370, 100]},
 }
+
+
+DESIGN_FIELDS = ('colors', 'panels', 'panel_colors', 'x', 'y', 'scale')
+
+
+def switch_design(raw, previous):
+    """Keep the regular layout and RCK layout independent across style changes."""
+    old_group = 'RCK' if previous == 'RCK' else 'standard'
+    new_group = 'RCK' if raw['design'] == 'RCK' else 'standard'
+    if old_group == new_group:
+        return raw
+    raw = copy.deepcopy(raw)
+    presets = raw.setdefault('design_presets', {})
+    presets[old_group] = {key: copy.deepcopy(raw[key]) for key in DESIGN_FIELDS}
+    incoming = copy.deepcopy(presets.get(new_group))
+    if incoming is None:
+        incoming = {key: copy.deepcopy(DEFAULT[key]) for key in DESIGN_FIELDS}
+        if new_group == 'RCK':
+            incoming['colors'].update(pink='#BEB4E6', yellow='#99C6DA', coral='#d9e0eb', dark='#04174A', text='#ffffff')
+            incoming.update(x=500, y=0, scale=100)
+            incoming['panels'].update(players0=[24, 190, 100], players1=[1601, 190, 100],
+                                      focus=[36, 925, 100], boost=[1695, 860, 120])
+            incoming['panel_colors'].update(players0='dark', players1='dark', stats0='pink', stats1='yellow', boost0='dark', boost1='dark')
+    raw.update(incoming)
+    return raw
 
 
 def normalize_config(raw):
@@ -90,10 +130,13 @@ def normalize_config(raw):
     for key in c:
         if key.startswith('show_') or key == 'auto_series':
             c[key] = bool(raw.get(key, c[key]))
-    if raw.get('design') in ('angular', 'rounded', 'classic'):
+    if raw.get('design') in ('angular', 'rounded', 'classic', 'RCK'):
         c['design'] = raw['design']
+    if raw.get('goal_style') == 'Original':
+        c['goal_style'] = 'Torneo Piruleta'
+    if raw.get('goal_style') in ('Torneo Piruleta', 'Bigness League', 'RCS', 'RCK'):
+        c['goal_style'] = raw['goal_style']
     c['scoreboard_gradient'] = bool(raw.get('scoreboard_gradient', True))
-    c['brand_logo'] = str(raw.get('brand_logo', ''))[:MAX_LOGO_DATA_URL_CHARS]
     for panel in ('boost', 'stats'):
         legacy = raw.get('panel_colors', {}).get(panel)
         if legacy in c['colors']:
@@ -116,9 +159,41 @@ def normalize_config(raw):
     for i, team in enumerate(raw.get('teams', [])[:2]):
         c['teams'][i] = {'name': str(team.get('name', 'EQUIPO'))[:80],
                          'logo': str(team.get('logo', ''))[:MAX_LOGO_DATA_URL_CHARS],
+                         'short': str(team.get('short', ''))[:80],
                          'wins': max(0, min(c['bestof']//2+1, int(team.get('wins', 0))))}
     if sum(t['wins'] for t in c['teams']) > c['bestof']:
         raise ValueError('Las victorias superan los partidos del formato. Reinicia la serie antes de cambiarlo.')
+    presets = raw.get('design_presets', {})
+    if isinstance(presets, dict):
+        for group in ('standard', 'RCK'):
+            if isinstance(presets.get(group), dict):
+                # Normalize cached layouts without recursively copying caches.
+                saved = normalize_config({'design': 'RCK' if group == 'RCK' else 'rounded',
+                                          'rck_layout_revision': raw.get('rck_layout_revision', 1),
+                                          **{key: presets[group][key] for key in DESIGN_FIELDS if key in presets[group]}})
+                c['design_presets'][group] = {key: copy.deepcopy(saved[key]) for key in DESIGN_FIELDS}
+    # Early RCK releases overwrote the regular layout in existing profiles.
+    # Recognize the exact shipped preset rather than treating user colors as RCK.
+    rck_palette = {'pink': '#bdb0e4', 'yellow': '#96c9da', 'coral': '#d9e0eb',
+                   'dark': '#071640', 'text': '#ffffff'}
+    if (c['design'] != 'RCK' and not c['design_presets']
+            and c['colors'] == rck_palette and c['y'] == 36
+            and c['panels']['focus'] == [76, 944, 100]
+            and c['panels']['boost'] == [1590, 775, 140]):
+        c['design_presets']['RCK'] = {key: copy.deepcopy(c[key]) for key in DESIGN_FIELDS}
+        for key in DESIGN_FIELDS:
+            c[key] = copy.deepcopy(DEFAULT[key])
+    if raw.get('rck_layout_revision', 1) != 2:
+        layouts = ([c] if c['design'] == 'RCK' else []) + ([c['design_presets']['RCK']] if 'RCK' in c['design_presets'] else [])
+        for layout in layouts:
+            if layout['x'] == 360 and layout['y'] == 36:
+                layout.update(x=500, y=0)
+            for key, old, new in [('players0', [60, 125, 100], [24, 190, 100]),
+                                  ('players1', [1565, 125, 100], [1601, 190, 100]),
+                                  ('focus', [76, 944, 100], [36, 925, 100]),
+                                  ('boost', [1590, 775, 140], [1695, 860, 120])]:
+                if layout['panels'][key] == old:
+                    layout['panels'][key] = new
     return c
 
 
@@ -475,7 +550,7 @@ class App:
                   wraplength=500, foreground='#b6a4c3').pack(anchor='w', pady=12)
         self.panel_vars = {}
         ttk.Label(layout, text='Panel                       X               Y          Escala %').pack(anchor='w')
-        for key, label in [('players0', 'Jugadores A'), ('players1', 'Jugadores B'), ('focus', 'Estadísticas'), ('boost', 'Turbo'), ('brand', 'Marca'), ('banner', 'Avisos')]:
+        for key, label in [('players0', 'Jugadores A'), ('players1', 'Jugadores B'), ('focus', 'Estadísticas'), ('boost', 'Turbo'), ('banner', 'Avisos')]:
             row = ttk.Frame(layout)
             row.pack(fill='x', pady=5)
             ttk.Label(row, text=label, width=20).pack(side='left')
@@ -513,19 +588,13 @@ class App:
         self.entry(design, 'Opacidad (%)', 'opacity', numeric=(10, 100))
         self.entry(design, 'Posición horizontal', 'x', numeric=(0, 1900))
         self.entry(design, 'Posición vertical', 'y', numeric=(0, 1000))
-        for k, label in [('show_logos', 'Escudos de equipos'), ('show_players', 'Turbo de todos los jugadores'), ('show_stats', 'Estadísticas del jugador en cámara'), ('show_boost', 'Turbo del jugador en cámara'), ('show_brand', 'Marca del torneo'), ('show_events', 'Cortina de gol'), ('auto_series', 'Sumar victorias automáticamente (API)')]:
+        for k, label in [('show_logos', 'Escudos de equipos'), ('show_players', 'Turbo de todos los jugadores'), ('show_stats', 'Estadísticas del jugador en cámara'), ('show_boost', 'Turbo del jugador en cámara'), ('show_events', 'Cortina de gol'), ('auto_series', 'Sumar victorias automáticamente (API)')]:
             v = tk.BooleanVar(value=self.store.config[k])
             self.vars[k] = v
             ttk.Checkbutton(visibility, text='  '+label, variable=v, command=self.apply,
                             style='Piruleta.TCheckbutton').pack(anchor='w', pady=2)
         ttk.Button(visibility, text='Probar cortina de gol', style='Control.TButton',
                    command=lambda: webbrowser.open(self.url+'?preview=1&goal=1')).pack(anchor='w', pady=3)
-        brand_row = ttk.Frame(visibility)
-        brand_row.pack(fill='x', pady=6)
-        ttk.Button(brand_row, text='PNG de la marca…', command=self.brand_logo).pack(side='left')
-        ttk.Button(brand_row, text='Restablecer PNG', command=self.reset_brand_logo).pack(side='left', padx=5)
-        ttk.Label(visibility, text='El nombre de la marca se toma del nombre del torneo en Textos.',
-                  wraplength=500, foreground='#b6a4c3').pack(anchor='w')
         ttk.Button(left, text='Aplicar diseño', style='Control.TButton', command=self.apply).pack(anchor='e')
         ttk.Label(right, text='CONTROL DEL PARTIDO', font=('Segoe UI', 13, 'bold')).pack(anchor='w', pady=(0, 10))
         ttk.Label(right, text='Formato de la serie', font=('Segoe UI', 10, 'bold')).pack(anchor='w')
@@ -576,6 +645,48 @@ class App:
             w = ttk.Entry(row, textvariable=v)
         w.pack(side='left', fill='x', expand=True)
         w.bind('<Return>', lambda e: self.apply())
+        return w
+
+    @staticmethod
+    def font_choices():
+        imported = sorted(
+            CUSTOM_FONT_PREFIX + path.name
+            for path in FONT_DIRECTORY.glob('*')
+            if path.is_file() and not path.is_symlink() and path.suffix.lower() in FONT_TYPES
+        )
+        return (*STANDARD_FONTS, *imported)
+
+    def import_font(self):
+        filename = filedialog.askopenfilename(
+            parent=self.root, title='Importar tipografía',
+            filetypes=[('Fuentes', '*.ttf *.otf *.woff *.woff2')],
+        )
+        if not filename:
+            return
+        source = Path(filename)
+        extension = source.suffix.lower()
+        try:
+            if extension not in FONT_TYPES:
+                raise ValueError('Elige un archivo TTF, OTF, WOFF o WOFF2.')
+            with source.open('rb') as file:
+                data = file.read(MAX_FONT_BYTES + 1)
+            if len(data) > MAX_FONT_BYTES or not data.startswith(FONT_TYPES[extension][1]):
+                raise ValueError('La fuente debe tener un formato válido y ocupar como máximo 16 MB.')
+            FONT_DIRECTORY.mkdir(parents=True, exist_ok=True)
+            stem = source.stem[:80]
+            target = FONT_DIRECTORY / (stem + extension)
+            number = 2
+            while target.exists():
+                target = FONT_DIRECTORY / f'{stem} ({number}){extension}'
+                number += 1
+            with target.open('xb') as file:
+                file.write(data)
+        except (OSError, ValueError) as exc:
+            messagebox.showerror('No se pudo importar la tipografía', str(exc), parent=self.root)
+            return
+        self.font_selector.configure(values=self.font_choices())
+        self.vars['font'].set(CUSTOM_FONT_PREFIX + target.name)
+        self.apply()
 
     def apply(self):
         try:
@@ -589,8 +700,18 @@ class App:
                 raw['custom_css'] = self.css.get('1.0', 'end-1c')
                 palette_keys = {label: key for key, label in self.palette_labels.items()}
                 raw['panel_colors'] = {key: palette_keys[var.get()] for key, var in self.panel_color_vars.items()}
+                for key, field in getattr(self, 'color_vars', {}).items():
+                    color = re.fullmatch(r'#?([0-9a-fA-F]{6})', field.get().strip())
+                    if not color:
+                        raise ValueError(f'{self.palette_labels[key]}: escribe un color hexadecimal de seis dígitos, como #FA54B7.')
+                    raw['colors'][key] = '#' + color[1].upper()
+                previous = self.store.config['design']
+                raw = switch_design(raw, previous)
                 self.store.config = normalize_config(raw)
-            self.draw()
+            if (previous == 'RCK') != (raw['design'] == 'RCK'):
+                self.sync()
+            else:
+                self.draw()
             return True
         except (ValueError, TypeError) as exc:
             messagebox.showerror('Revisa el diseño', str(exc))
@@ -613,11 +734,52 @@ class App:
         self.draw()
 
     def color(self, key):
-        color = colorchooser.askcolor(self.store.config['colors'][key], parent=self.root)[1]
-        if color:
+        dialog = tk.Toplevel(self.root, bg='#201b2c')
+        dialog.title('Elegir color')
+        dialog.transient(self.root)
+        dialog.resizable(False, False)
+        frame = ttk.Frame(dialog, padding=20)
+        frame.pack(fill='both', expand=True)
+
+        value = tk.StringVar(dialog, value=self.store.config['colors'][key])
+        ttk.Label(frame, text='Color hexadecimal').pack(anchor='w')
+        field = ttk.Entry(frame, textvariable=value, width=22)
+        field.pack(fill='x', pady=(5, 8))
+        error = ttk.Label(frame, foreground='#ffce72')
+        error.pack(anchor='w')
+
+        def apply_color(event=None):
+            match = re.fullmatch(r'#?([0-9a-fA-F]{6})', value.get().strip())
+            if not match:
+                error.configure(text='Escribe seis dígitos, por ejemplo #BEB4E6.')
+                field.focus_set()
+                return
             with self.store.lock:
-                self.store.config['colors'][key] = color
-            self.draw()
+                self.store.config['colors'][key] = '#' + match[1].upper()
+            dialog.destroy()
+
+        def choose_color():
+            initial = value.get().strip()
+            if re.fullmatch(r'#?[0-9a-fA-F]{6}', initial):
+                initial = '#' + initial.lstrip('#')
+            else:
+                initial = self.store.config['colors'][key]
+            selected = colorchooser.askcolor(initial, parent=dialog)[1]
+            if selected:
+                value.set(selected)
+                error.configure(text='')
+
+        buttons = ttk.Frame(frame)
+        buttons.pack(fill='x', pady=(8, 0))
+        ttk.Button(buttons, text='Selector visual…', command=choose_color).pack(side='left', padx=(0, 8))
+        ttk.Button(buttons, text='Cancelar', command=dialog.destroy).pack(side='left', padx=(0, 8))
+        ttk.Button(buttons, text='Aplicar', command=apply_color).pack(side='right')
+        dialog.bind('<Return>', apply_color)
+        dialog.bind('<Escape>', lambda event: dialog.destroy())
+        dialog.wait_visibility()
+        dialog.grab_set()
+        field.focus_set()
+        field.selection_range(0, 'end')
 
     def logo(self, i):
         import base64
@@ -635,26 +797,6 @@ class App:
         with self.store.lock:
             self.store.config['teams'][i]['logo'] = ''
 
-    def brand_logo(self):
-        import base64
-        path = filedialog.askopenfilename(parent=self.root, filetypes=[('Imagen PNG', '*.png')])
-        if not path:
-            return
-        try:
-            data = Path(path).read_bytes()
-            if not data.startswith(b'\x89PNG\r\n\x1a\n'):
-                raise ValueError('Selecciona una imagen PNG válida.')
-            if len(data) > MAX_LOGO_BYTES:
-                raise ValueError('El tamaño máximo de la marca es de 4 MB.')
-            with self.store.lock:
-                self.store.config['brand_logo'] = 'data:image/png;base64,' + base64.b64encode(data).decode()
-        except (OSError, ValueError) as exc:
-            messagebox.showerror('No se pudo cargar el PNG', str(exc), parent=self.root)
-
-    def reset_brand_logo(self):
-        with self.store.lock:
-            self.store.config['brand_logo'] = ''
-
     def swap_teams(self):
         if not self.apply():
             return
@@ -670,7 +812,8 @@ class App:
             t = self.store.config['teams'][i]
             t['wins'] = max(0, min(self.store.config['bestof']//2+1, t['wins']+delta))
             self.store.config['game'] = series_state(self.store.config)['game']
-            self.vars['game'].set(str(self.store.config['game']))
+            if 'game' in self.vars:
+                self.vars['game'].set(str(self.store.config['game']))
         self.draw()
 
     def change_format(self, event=None):
@@ -689,7 +832,8 @@ class App:
                                     'Reinicia la serie antes de elegir un formato menor que el resultado actual.')
                 return
             self.store.config = updated
-            self.vars['game'].set(str(updated['game']))
+            if 'game' in self.vars:
+                self.vars['game'].set(str(updated['game']))
         self.draw()
 
     def reset_series(self):

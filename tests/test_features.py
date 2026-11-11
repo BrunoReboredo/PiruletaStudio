@@ -377,37 +377,33 @@ class DesktopIntegrationTests(unittest.TestCase):
         self.assertTrue(checkboxes)
         self.assertTrue(all(c['style'] == 'Marker.TCheckbutton' for c in checkboxes))
 
-    def test_new_marker_defaults_and_custom_tournament_logo_survive_apply(self):
+    def test_marker_defaults_and_legacy_brand_settings(self):
         from vendor.overlay.app import normalize_config
-        app = self.app
-        self.assertEqual(app.store.config['design'], 'rounded')
-        self.assertEqual(app.store.config['font'], 'Verdana')
-        self.assertFalse(app.store.config['show_brand'])
-        logo = Path(__file__).resolve().parents[1]/'vendor/overlay/assets/torneo.png'
-        with patch('marker.filedialog.askopenfilename', return_value=str(logo)):
-            app.marker.tournament_logo()
-        chosen = app.store.config['brand_logo']
-        self.assertTrue(chosen.startswith('data:image/png;base64,'))
-        self.assertTrue(app.marker.apply())
-        self.assertEqual(app.store.config['brand_logo'], chosen)
-        profile = json.loads(json.dumps(app.store.config))
-        self.assertEqual(normalize_config(profile)['brand_logo'], chosen)
-        legacy = normalize_config(dict(design='angular', font='Arial', show_brand=True))
-        self.assertEqual((legacy['design'], legacy['font'], legacy['show_brand']), ('angular', 'Arial', True))
-        app.marker.reset_tournament_logo()
-        self.assertEqual(app.store.config['brand_logo'], '')
+        config = self.app.store.config
+        self.assertEqual((config['design'], config['font']), ('rounded', 'Verdana'))
+        legacy = normalize_config(dict(design='angular', font='Arial', show_brand=True,
+                                       brand_logo='old logo', panels={'brand': [820, 154, 100]}))
+        self.assertEqual((legacy['design'], legacy['font']), ('angular', 'Arial'))
+        self.assertNotIn('show_brand', legacy)
+        self.assertNotIn('brand_logo', legacy)
+        self.assertNotIn('brand', legacy['panels'])
 
-    def test_marker_color_picker_preserves_animation_profile(self):
+    def test_marker_hex_color_preserves_animation_profile(self):
         profile = copy.deepcopy(self.app.profile)
         before = clip_keys(profile, renderer_signature())
-        with patch('vendor.overlay.app.colorchooser.askcolor', return_value=((0, 255, 0), '#00ff00')):
-            self.app.marker.color('pink')
-        self.assertEqual(self.app.store.config['colors']['pink'], '#00ff00')
+        marker = self.app.marker
+        marker.color_vars['pink'].set('00ff00')
+        self.assertTrue(marker.apply())
+        self.assertEqual(marker.color_vars['pink'].get(), '#00FF00')
+        marker.color_vars['pink'].set('zzzzzz')
+        with patch('vendor.overlay.app.messagebox.showerror'):
+            self.assertFalse(marker.apply())
+        self.assertEqual(self.app.store.config['colors']['pink'], '#00FF00')
         self.assertEqual(self.app.profile, profile)
         self.assertEqual(clip_keys(self.app.profile, renderer_signature()), before)
 
     def test_field_opening_uses_manual_video_and_keeps_series_flow(self):
-        for key, seconds in [('field',15),('pre',13),('victory0',4),('victory1',4)]:
+        for key, seconds in [('field',12),('pre',13),('victory0',4),('victory1',4)]:
             video = Path(self.temp.name)/(key+'.mp4')
             video.write_bytes(mp4(seconds))
             self.app.video_fields[key].set(str(video))
@@ -415,8 +411,17 @@ class DesktopIntegrationTests(unittest.TestCase):
         with patch('app.App.choose_opening', return_value='field'):
             self.app.start()
         self.assertEqual(self.app.store.phase, 'field')
-        self.assertEqual(self.app.store.scene_seconds['field'], 15)
-        self.app.store.duration('cut')
+        store = self.app.store
+        self.assertEqual(store.scene_seconds['field'], 12)
+        with patch.object(store, 'clock', return_value=store.deadline - 0.01):
+            store.tick()
+        self.assertEqual(store.phase, 'field')
+        with patch.object(store, 'clock', return_value=store.deadline):
+            store.tick()
+        self.assertTrue(store.snapshot()['studio']['field_opening_elapsed'])
+        store.start('field')
+        store.duration('cut')
+        self.assertFalse(store.snapshot()['studio']['field_opening_elapsed'])
         self.assertEqual(self.app.store.phase, 'game')
         self.app.store.config['bestof'] = 1
         self.app.store.ingest(dict(Event='MatchEnded', Data=dict(WinnerTeamNum=0,MatchGuid='final')))

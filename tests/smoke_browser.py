@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def main():
     state = preview_snapshot(Studio())
     state['media'] = {}
+    state['overlay_visible'] = True
     state['studio'] = dict(phase='game', revision=1, gameplay=True)
     state['config']['colors']['pink'] = '#00ff00'
     state['config']['colors']['yellow'] = '#0077ff'
@@ -65,19 +66,12 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
  }
  const sample=await(await fetch('/state')).json(),overlay=document.getElementById('game').contentWindow;
  for(const [phase,gameplay,expected] of [['game',true,'visible'],['game',false,'hidden'],['pre',true,'hidden'],['stats',true,'hidden'],['victory0',true,'hidden'],['complete',true,'hidden']]){
-  sample.studio={phase,gameplay};overlay.render(sample);
+  sample.overlay_visible=phase==='game'&&gameplay;overlay.render(sample);
   if(overlay.getComputedStyle(overlay.document.getElementById('stage')).visibility!==expected)throw Error('Marker visibility '+phase+' '+gameplay);
  }
- sample.studio={phase:'game',gameplay:true};overlay.render(sample);
+ sample.overlay_visible=true;overlay.render(sample);
  if(overlay.document.getElementById('stage').className!=='rounded')throw Error('Rounded default');
  if(overlay.document.getElementById('stage').style.fontFamily!=='Verdana')throw Error('Verdana default');
- sample.config.show_brand=true;
- sample.config.brand_logo='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aKXQAAAAASUVORK5CYII=';
- overlay.render(sample);
- if(overlay.document.getElementById('brandlogo').getAttribute('src')!==sample.config.brand_logo)throw Error('Custom tournament logo');
- if(overlay.document.getElementById('brand').classList.contains('hidden'))throw Error('Show tournament logo');
- sample.config.show_brand=false;overlay.render(sample);
- if(!overlay.document.getElementById('brand').classList.contains('hidden'))throw Error('Hide tournament logo');
  const rect=id=>overlay.document.getElementById(id).getBoundingClientRect();
  if(Math.abs(rect('series0').left-rect('logo0').left)>1)throw Error('Left pips alignment');
  if(Math.abs(rect('series1').right-rect('logo1').right)>1)throw Error('Right pips alignment');
@@ -113,6 +107,15 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
  if(overlay.document.getElementById('goalcurtain').style.getPropertyValue('--goal-color')!==sample.config.colors.yellow)throw Error('Goal team color');
  sample.goal_effect.remaining=0;overlay.render(sample);
  if(overlay.document.getElementById('stage').classList.contains('goal-playing'))throw Error('Goal curtain cleanup');
+ sample.config.design='RCK';sample.config.font='Montserrat';sample.config.goal_style='RCK';
+ sample.config.event='PARTIDO [GAME]';sample.config.round='BO[SERIE]';
+ sample.series.game=2;sample.config.bestof=5;sample.goal_effect={id:2,remaining:3000,team:0};
+ overlay.render(sample);
+ const overlayDoc=overlay.document;
+ if(!overlayDoc.getElementById('stage').classList.contains('RCK'))throw Error('RCK design');
+ if(!overlayDoc.getElementById('stage').style.fontFamily.includes('Montserrat'))throw Error('Montserrat');
+ if(overlayDoc.getElementById('event').textContent!=='PARTIDO 2'||overlayDoc.getElementById('subtitle').textContent!=='BO5')throw Error('Series tokens');
+ if(overlayDoc.getElementById('goallogo').getAttribute('src')!=='/assets/rck.png')throw Error('RCK goal logo');
  document.body.dataset.qa='PASS';
 }catch(e){document.body.dataset.qa='FAIL: '+e.message}})();
 </script>
@@ -140,6 +143,9 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
                 data, kind = (ROOT/'vendor/overlay/boost-animation.js').read_bytes(), 'application/javascript'
             elif route == '/audio/engine-start.wav':
                 data, kind = (ROOT/'vendor/audio/engine-start.wav').read_bytes(), 'audio/wav'
+            elif route in ('/assets/torneo.png', '/assets/rck.png', '/assets/montserrat.ttf'):
+                data = (ROOT/'vendor/overlay'/route.lstrip('/')).read_bytes()
+                kind = 'font/ttf' if route.endswith('.ttf') else 'image/png'
             elif route == '/postmatch':
                 data, kind = (ROOT/'vendor/postmatch/postmatch.html').read_bytes(), 'text/html'
             else:

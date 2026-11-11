@@ -11,8 +11,20 @@
 <script>
 const $=id=>document.getElementById(id),ids=['game','stats','field','pre','victory0','victory1','end'];let revision=-1,phase='';
 let sceneChange=0,blackAnimation=null;
+let fieldStartedAt=null,fieldExitRequestedAt=null;
+function fieldOpeningCanEnd(){
+ const video=$('field'),now=performance.now();
+ fieldExitRequestedAt??=now;
+ // The desktop timer starts before the OBS fade and before the first frame is decoded.
+ if(video.currentTime>=15)return true;
+ if(video.ended&&fieldStartedAt!==null&&now-fieldStartedAt>=15000)return true;
+ // Recover if OBS cannot load or play the file.
+ return now-fieldExitRequestedAt>=8000;
+}
 async function showScene(p){
  const target=p==='complete'?'end':p,change=++sceneChange,black=$('fade');
+ fieldExitRequestedAt=null;
+ if(p==='field')fieldStartedAt=null;
  const from=Number(getComputedStyle(black).opacity);
  if(blackAnimation)blackAnimation.cancel();
  try{
@@ -32,7 +44,10 @@ async function showScene(p){
    const el=$(id),active=id===target;
    el.classList.toggle('active',active);el.style.zIndex=active?'2':'1';
    if(el.tagName==='VIDEO'){
-    if(active){el.currentTime=0;el.play().catch(()=>{})}else el.pause();
+    if(active){
+     el.currentTime=0;
+     el.play().then(()=>{if(id==='field'&&change===sceneChange)fieldStartedAt=performance.now()}).catch(()=>{});
+    }else el.pause();
    }
   }
   const engine=$('engine');engine.pause();engine.currentTime=0;engine.volume=0.6;
@@ -48,7 +63,10 @@ async function showScene(p){
 async function poll(){try{const r=await fetch('/state',{cache:'no-store'});if(!r.ok)throw Error('Sin conexión');const s=await r.json();
 for(const [id,url] of Object.entries(s.media)){const v=$(id);if(v.dataset.url!==url){v.dataset.url=url;v.src=url;v.load()}}
 const p=s.studio.phase;
-if(revision!==s.studio.revision){showScene(p);revision=s.studio.revision;phase=p}
+if(revision!==s.studio.revision){
+ const waitForField=phase==='field'&&s.studio.field_opening_elapsed&&!fieldOpeningCanEnd();
+ if(!waitForField){showScene(p);revision=s.studio.revision;phase=p}
+}
 // Hold keeps the final frame on screen; extending a scene does not restart its animation.
 const c=s.config,w=c.teams.map(t=>t.wins);$('score').textContent=w.join(' — ');$('title').textContent=s.series.complete?(s.series.tied?'SERIE EMPATADA':c.teams[w[0]>w[1]?0:1].name+' GANA LA SERIE'):'SERIE PREPARADA';$('names').textContent=c.teams.map(t=>t.name).join('  /  ');for(let i=0;i<2;i++)$('logo'+i).src=c.teams[i].logo||'/assets/torneo.png';$('error').style.display='none';
 }catch(e){$('error').textContent='Sin conexión con Piruleta Studio';$('error').style.display='block'}setTimeout(poll,50)}poll();
