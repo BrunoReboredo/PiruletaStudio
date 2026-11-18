@@ -7,3 +7,5 @@ portable/
 build/
 *.spec
 inicio.log
+
+*.lnk

@@ -39,7 +39,7 @@ class App:
         self.library = Library(library_dir or LIBRARY)
         self.profile_fingerprints = set()
         self.legacy_fingerprints = set()
-        root.title('Piruleta Studio 0.8.2 · Control de retransmisión')
+        root.title('Piruleta Studio 0.8.3 · Control de retransmisión')
         self.icon_image = tk.PhotoImage(master=root, file=str(ROOT/'vendor/branding/piruleta.png'))
         root.iconphoto(True, self.icon_image)
         if os.name == 'nt':
@@ -109,7 +109,7 @@ class App:
         ttk.Label(root, textvariable=self.status, background='#14121e', foreground='#b6a9c8').pack(fill='x', padx=24, pady=(0, 12))
         ttk.Label(
             root,
-            text='Versión 0.8.2\nAplicación desarrollada por Bruno Reboredo Álvarez',
+            text='Versión 0.8.3\nAplicación desarrollada por Bruno Reboredo Álvarez',
             justify='right', background='#14121e', foreground='#b6a9c8', font=('Segoe UI', 8),
         ).pack(anchor='e', padx=24, pady=(0, 10))
         root.protocol('WM_DELETE_WINDOW', self.close)

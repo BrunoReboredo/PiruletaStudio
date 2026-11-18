@@ -11,6 +11,7 @@ import tkinter as tk
 from tkinter import ttk, colorchooser, filedialog, messagebox
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import webbrowser
+from urllib.parse import urlsplit, parse_qsl, urlencode
 
 from vendor.postmatch.basic_metrics import DEFAULT_METRICS, normalize_metrics
 
@@ -71,7 +72,7 @@ DEFAULT = {
                'dark': '#181426', 'text': '#ffffff'},
     'show_logos': True, 'show_players': True, 'show_stats': True,
     'show_boost': True, 'show_events': True, 'show_goal_replay': True,
-    'show_stats_camera': False, 'show_players_cameras': False, 'cameras': [],
+    'show_stats_camera': False, 'show_players_cameras': False, 'auto_replay_cameras': False, 'cameras': [],
     'design': 'rounded', 'font': 'Verdana', 'scale': 100, 'opacity': 100,
     'x': 360, 'y': 0, 'auto_series': True, 'custom_css': '', 'api_port': 49123,
     'scoreboard_gradient': True,
@@ -145,7 +146,7 @@ def normalize_config(raw):
         raise ValueError('Elige BO1, BO2, BO3, BO4, BO5 o BO7.')
     c['game'] = min(c['game'], c['bestof'])
     for key in c:
-        if key.startswith('show_') or key == 'auto_series':
+        if key.startswith('show_') or key in ('auto_series', 'auto_replay_cameras'):
             c[key] = bool(raw.get(key, c[key]))
     if raw.get('design') in ('angular', 'rounded', 'classic', 'RCK'):
         c['design'] = raw['design']
@@ -735,6 +736,8 @@ class App:
                 for i in range(2):
                     raw['teams'][i]['name'] = self.team_vars[i]['name'].get()
                 raw['panels'] = {k: [v.get() for v in values] for k, values in self.panel_vars.items()}
+                if hasattr(self, 'camera_vars'):
+                    raw['cameras'] = [{'name': name.get(), 'url': url.get()} for name, url in self.camera_vars]
                 raw['custom_css'] = self.css.get('1.0', 'end-1c')
                 palette_keys = {label: key for key, label in self.palette_labels.items()}
                 raw['panel_colors'] = {key: palette_keys[var.get()] for key, var in self.panel_color_vars.items()}

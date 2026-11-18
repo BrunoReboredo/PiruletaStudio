@@ -157,6 +157,7 @@ class Studio(Store):
         self.goal_armed = True
         self.in_goal_replay = False
         self.last_goal = None
+        self.auto_camera_until = 0
         self.pending_victory = None
         self.pending_stats = False
         self.podium_due = None
@@ -317,6 +318,7 @@ class Studio(Store):
             return False
         with self.lock:
             if event == 'MatchCreated':
+                self.auto_camera_until = 0
                 self.last_goal = None
                 self.podium_at = None
                 self.podium_guid = None
@@ -324,12 +326,22 @@ class Studio(Store):
                 self.in_goal_replay = False
                 self.goal_until = 0
             elif event in ('ReplayCreated','MatchDestroyed'):
+                self.auto_camera_until = 0
                 self.last_goal = None
                 self.goal_until = 0
             elif event == 'GoalReplayStart':
                 self.in_goal_replay = True
                 self.goal_armed = False
-            elif event in ('GoalReplayEnd', 'PodiumStart'):
+            elif event == 'GoalReplayEnd':
+                if (self.in_goal_replay and self.last_goal is not None
+                        and self.config['auto_replay_cameras'] and self.armed
+                        and self.phase == 'game' and not self.history_replay
+                        and self.playlist_id in PRIVATE_PLAYLISTS):
+                    self.auto_camera_until = self.clock() + 4.5
+                self.in_goal_replay = False
+                self.last_goal = None
+            elif event == 'PodiumStart':
+                self.auto_camera_until = 0
                 self.in_goal_replay = False
                 self.last_goal = None
             elif event == 'RoundStarted':
@@ -337,6 +349,7 @@ class Studio(Store):
                 self.in_goal_replay = False
                 self.goal_armed = True
             elif event == 'GoalScored':
+                self.auto_camera_until = 0
                 if (self.armed and self.goal_armed and not self.in_goal_replay
                         and not self.history_replay and not self.result_latched and self.playlist_id in PRIVATE_PLAYLISTS):
                     self.goal_armed = False
@@ -567,7 +580,7 @@ class Studio(Store):
     def snapshot(self):
         with self.lock:
             state = super().snapshot()
-            state['app'] = dict(version='0.8.2',developer='Bruno Reboredo Álvarez')
+            state['app'] = dict(version='0.8.3',developer='Bruno Reboredo Álvarez')
             state['goal_effect'] = dict(id=self.goal_sequence, remaining=max(0,int((self.goal_until-self.clock())*1000)),team=self.goal_team)
             if state.get('postmatch'):
                 state['postmatch']['visible'] = self.phase == 'stats'
@@ -587,5 +600,9 @@ class Studio(Store):
             state['goal_replay'] = copy.deepcopy(self.last_goal) if replay_visible else None
             if replay_visible:
                 state['studio']['gameplay'] = True
+            state['auto_camera_remaining'] = (
+                max(0, int((self.auto_camera_until-self.clock())*1000))
+                if self.config['auto_replay_cameras'] and self.phase == 'game'
+                and not self.history_replay and self.playlist_id in PRIVATE_PLAYLISTS else 0)
             state['overlay_visible'] = bool(state['studio']['gameplay'] and self.phase == 'game')
             return state

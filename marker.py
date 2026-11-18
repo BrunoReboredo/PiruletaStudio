@@ -44,11 +44,12 @@ class MarkerPanel(OverlayApp):
         nb = ttk.Notebook(left)
         self.design_tabs = nb
         nb.pack(fill='both', expand=True, pady=12)
-        teams, design, backgrounds, visibility, layout, advanced = (ttk.Frame(nb, padding=15) for _ in range(6))
+        teams, design, backgrounds, visibility, cameras, layout, advanced = (ttk.Frame(nb, padding=15) for _ in range(7))
         nb.add(teams, text='Textos')
         nb.add(design, text='Diseño')
         nb.add(backgrounds, text='Fondos')
         nb.add(visibility, text='Elementos')
+        nb.add(cameras, text='Cámaras')
         nb.add(layout, text='Posiciones')
         nb.add(advanced, text='CSS libre')
         self.palette_labels = {'dark': 'Fondo principal', 'pink': 'Equipo A', 'coral': 'Color central',
@@ -120,12 +121,34 @@ class MarkerPanel(OverlayApp):
         self.entry(design, 'Opacidad (%)', 'opacity', numeric=(10, 100))
         self.entry(design, 'Posición horizontal', 'x', numeric=(0, 1900))
         self.entry(design, 'Posición vertical', 'y', numeric=(0, 1000))
-        for k, label in [('show_logos', 'Escudos de equipos'), ('show_players', 'Turbo de todos los jugadores'), ('show_stats', 'Estadísticas del jugador en cámara'), ('show_boost', 'Turbo del jugador en cámara'), ('show_events', 'Cortina de gol'), ('show_goal_replay', 'Barra de repetición de gol'), ('show_stats_camera', 'Cámara estadísticas'), ('show_players_cameras', 'Cámaras turbos'), ('auto_series', 'Sumar victorias automáticamente (API)')]:
+        for k, label in [('show_logos', 'Escudos de equipos'), ('show_players', 'Turbo de todos los jugadores'), ('show_stats', 'Estadísticas del jugador en cámara'), ('show_boost', 'Turbo del jugador en cámara'), ('show_events', 'Cortina de gol'), ('show_goal_replay', 'Barra de repetición de gol'), ('auto_series', 'Sumar victorias automáticamente (API)')]:
             v = tk.BooleanVar(value=self.store.config[k])
             self.vars[k] = v
             ttk.Checkbutton(visibility, text='  '+label, variable=v, command=self.apply,
                             style='Marker.TCheckbutton').pack(anchor='w', pady=5)
-        ttk.Button(visibility, text='Configurar cámaras…', command=self.configure_cameras).pack(anchor='w', pady=6)
+        for key, label in [('show_stats_camera', 'Cámara estadísticas'),
+                           ('show_players_cameras', 'Cámaras turbos'),
+                           ('auto_replay_cameras', 'Mostrar cámaras turbos durante 4,5 s al terminar la repetición')]:
+            variable = tk.BooleanVar(value=self.store.config[key])
+            self.vars[key] = variable
+            ttk.Checkbutton(cameras, text='  '+label, variable=variable, command=self.apply,
+                            style='Marker.TCheckbutton').pack(anchor='w', pady=5)
+        ttk.Separator(cameras).pack(fill='x', pady=12)
+        ttk.Label(cameras, text='Nombre del jugador en Rocket League y enlace de visualización OBS Ninja / VDO.Ninja.',
+                  wraplength=600).pack(anchor='w', pady=(0, 8))
+        camera_fields = ttk.Frame(cameras)
+        camera_fields.pack(fill='both', expand=True)
+        camera_fields.columnconfigure(1, weight=1)
+        ttk.Label(camera_fields, text='Jugador').grid(row=0, column=0, sticky='w')
+        ttk.Label(camera_fields, text='Enlace (?view=...)').grid(row=0, column=1, sticky='w')
+        self.camera_vars = []
+        for index in range(8):
+            camera = self.store.config['cameras'][index] if index < len(self.store.config['cameras']) else {}
+            name = tk.StringVar(value=camera.get('name', ''))
+            url = tk.StringVar(value=camera.get('url', ''))
+            ttk.Entry(camera_fields, textvariable=name, width=22).grid(row=index+1, column=0, sticky='ew', padx=(0, 10), pady=5)
+            ttk.Entry(camera_fields, textvariable=url, width=35).grid(row=index+1, column=1, sticky='ew', pady=5)
+            self.camera_vars.append((name, url))
         self.entry(visibility, 'Estilo de cortina', 'goal_style', choices=['Torneo Piruleta', 'Bigness League', 'RCS', 'RCK'])
         ttk.Button(visibility, text='Probar cortina de gol', command=self.preview_goal).pack(anchor='w', pady=6)
         ttk.Button(left, text='Aplicar diseño', style='Control.TButton', command=self.apply).pack(anchor='e')
@@ -211,6 +234,10 @@ class MarkerPanel(OverlayApp):
     def sync(self):
         super().sync()
         self.sync_colors()
+        for index, (name, url) in enumerate(self.camera_vars):
+            camera = self.store.config['cameras'][index] if index < len(self.store.config['cameras']) else {}
+            name.set(camera.get('name', ''))
+            url.set(camera.get('url', ''))
         self.owner.refresh_metric_controls()
         if hasattr(self.owner,'mvp_delay'):
             self.owner.mvp_delay.set(str(self.store.config.get('mvp_delay',3)))

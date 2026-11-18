@@ -1,8 +1,8 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-if exist "portable\Piruleta Studio 0.8.2\Piruleta Studio.exe" (
-    start "" "portable\Piruleta Studio 0.8.2\Piruleta Studio.exe"
+if exist "portable\Piruleta Studio 0.8.3\Piruleta Studio.exe" (
+    start "" "portable\Piruleta Studio 0.8.3\Piruleta Studio.exe"
     exit /b
 )
 python -B launcher.py
