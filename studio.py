@@ -3,6 +3,7 @@ import base64
 import copy
 import hashlib
 import json
+import math
 import re
 import time
 import zipfile
@@ -155,6 +156,7 @@ class Studio(Store):
         self.goal_team = 0
         self.goal_armed = True
         self.in_goal_replay = False
+        self.last_goal = None
         self.pending_victory = None
         self.pending_stats = False
         self.podium_due = None
@@ -315,29 +317,41 @@ class Studio(Store):
             return False
         with self.lock:
             if event == 'MatchCreated':
+                self.last_goal = None
                 self.podium_at = None
                 self.podium_guid = None
                 self.goal_armed = True
                 self.in_goal_replay = False
                 self.goal_until = 0
             elif event in ('ReplayCreated','MatchDestroyed'):
+                self.last_goal = None
                 self.goal_until = 0
             elif event == 'GoalReplayStart':
                 self.in_goal_replay = True
                 self.goal_armed = False
-            elif event == 'GoalReplayEnd':
+            elif event in ('GoalReplayEnd', 'PodiumStart'):
                 self.in_goal_replay = False
+                self.last_goal = None
             elif event == 'RoundStarted':
+                self.last_goal = None
                 self.in_goal_replay = False
                 self.goal_armed = True
             elif event == 'GoalScored':
-                if (self.armed and self.config['show_events'] and self.goal_armed and not self.in_goal_replay
+                if (self.armed and self.goal_armed and not self.in_goal_replay
                         and not self.history_replay and not self.result_latched and self.playlist_id in PRIVATE_PLAYLISTS):
                     self.goal_armed = False
-                    self.goal_sequence += 1
-                    self.goal_until = self.clock()+3
-                    scorer = data.get('Scorer') or {}
-                    self.goal_team = scorer.get('TeamNum',0) if scorer.get('TeamNum',0) in (0,1) else 0
+                    scorer = data.get('Scorer')
+                    if not isinstance(scorer, dict):
+                        scorer = {}
+                    team = scorer.get('TeamNum')
+                    self.goal_team = 1 if team == 1 else 0
+                    speed = data.get('GoalSpeed')
+                    speed_kmh = (round(speed * 0.036) if type(speed) in (int, float)
+                                 and math.isfinite(speed) and speed >= 0 else None)
+                    self.last_goal = {'name': scorer.get('Name') or '', 'team': team, 'speed_kmh': speed_kmh}
+                    if self.config['show_events']:
+                        self.goal_sequence += 1
+                        self.goal_until = self.clock()+3
             if event == 'MatchCreated':
                 self.playlist_id = None
                 self.history_replay = False
@@ -553,7 +567,7 @@ class Studio(Store):
     def snapshot(self):
         with self.lock:
             state = super().snapshot()
-            state['app'] = dict(version='0.8.1',developer='Bruno Reboredo Álvarez')
+            state['app'] = dict(version='0.8.2',developer='Bruno Reboredo Álvarez')
             state['goal_effect'] = dict(id=self.goal_sequence, remaining=max(0,int((self.goal_until-self.clock())*1000)),team=self.goal_team)
             if state.get('postmatch'):
                 state['postmatch']['visible'] = self.phase == 'stats'
@@ -566,6 +580,12 @@ class Studio(Store):
                                    podium_remaining=max(0, self.podium_due-self.clock()) if self.podium_due is not None else None)
             if (self.goal_until > self.clock() and self.config['show_events'] and self.phase == 'game'
                     and not self.history_replay and (self.playlist_id is None or self.playlist_id in PRIVATE_PLAYLISTS)):
+                state['studio']['gameplay'] = True
+            replay_visible = (self.phase == 'game' and self.in_goal_replay and self.last_goal is not None
+                              and not self.history_replay and self.config['show_goal_replay']
+                              and self.config['design'] != 'RCK' and self.playlist_id in PRIVATE_PLAYLISTS)
+            state['goal_replay'] = copy.deepcopy(self.last_goal) if replay_visible else None
+            if replay_visible:
                 state['studio']['gameplay'] = True
             state['overlay_visible'] = bool(state['studio']['gameplay'] and self.phase == 'game')
             return state

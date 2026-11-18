@@ -4,7 +4,7 @@ Aplicación de escritorio para Windows que reúne Animaciones, Overlay y Estadí
 
 ## Abrir
 
-La actualización de esta entrega está en **portable/Piruleta Studio 0.8.1/Piruleta Studio.exe**. Las versiones anteriores se conservan en sus carpetas para no interrumpir trabajos en curso. Abre el ejecutable con doble clic y conserva `_internal` a su lado. No necesita Python instalado. Las compilaciones de desarrollo con `build.ps1` se crean en `portable/Piruleta Studio/`.
+La actualización de esta entrega está en **portable/Piruleta Studio 0.8.2/Piruleta Studio.exe**. Las versiones anteriores se conservan en sus carpetas para no interrumpir trabajos en curso. Abre el ejecutable con doble clic y conserva `_internal` a su lado. No necesita Python instalado. Las compilaciones de desarrollo con `build.ps1` se crean en `portable/Piruleta Studio/`.
 
 Para ejecutar el código fuente, con Python 3.11 o posterior (incluido Tkinter), abre **Abrir Piruleta Studio.cmd**. No necesita paquetes de pip. También puedes ejecutar `python app.py` desde esta carpeta.
 
@@ -191,3 +191,7 @@ Para ejecutar el código fuente con Campo rápido instala las dependencias de `r
 - En Emisión y OBS puedes ajustar la espera tras el inicio del podio/MVP entre 0,5 y 30 segundos (predeterminado 3). Se conserva el orden final MVP → victoria completa → estadísticas. Si el aviso del podio llega antes del cierre del resultado se conserva su instante.
 
 Abre la 0.8 desde el launcher actualizado. Para ver los cambios de pintura y Campo prepara nuevos vídeos; los archivos anteriores no se modifican. Se mantienen Campo/Coches como elección de apertura, MP4 manuales, la misma URL para OBS y la vuelta a Datos al cerrar la serie.
+
+## 0.8.2
+
+Overlay con barra de repetición de gol en los estilos angular, redondeado y clásico, y cámaras de estadísticas y turbos mediante enlaces de visualización OBS Ninja / VDO.Ninja. Las tres opciones están en Elementos. Configurar cámaras permite asociar hasta ocho jugadores con sus enlaces; se guardan en el perfil del marcador. La vista previa muestra las cámaras configuradas o marcos de ejemplo.

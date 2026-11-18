@@ -23,7 +23,7 @@ def make_server(store, media, port=18767):
         def do_GET(self, head=False):
             route = urlsplit(self.path).path
             if route in ('/state', '/preview-state', '/metrics'):
-                state = preview_snapshot(store) if route == '/preview-state' else store.snapshot()
+                state = preview_snapshot(store, parse_qs(urlsplit(self.path).query).get('replay') == ['1']) if route == '/preview-state' else store.snapshot()
                 if route == '/preview-state':
                     state['overlay_visible'] = True
                     value=parse_qs(urlsplit(self.path).query).get('players',['3'])[0]

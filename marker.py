@@ -120,11 +120,12 @@ class MarkerPanel(OverlayApp):
         self.entry(design, 'Opacidad (%)', 'opacity', numeric=(10, 100))
         self.entry(design, 'Posición horizontal', 'x', numeric=(0, 1900))
         self.entry(design, 'Posición vertical', 'y', numeric=(0, 1000))
-        for k, label in [('show_logos', 'Escudos de equipos'), ('show_players', 'Turbo de todos los jugadores'), ('show_stats', 'Estadísticas del jugador en cámara'), ('show_boost', 'Turbo del jugador en cámara'), ('show_events', 'Cortina de gol'), ('auto_series', 'Sumar victorias automáticamente (API)')]:
+        for k, label in [('show_logos', 'Escudos de equipos'), ('show_players', 'Turbo de todos los jugadores'), ('show_stats', 'Estadísticas del jugador en cámara'), ('show_boost', 'Turbo del jugador en cámara'), ('show_events', 'Cortina de gol'), ('show_goal_replay', 'Barra de repetición de gol'), ('show_stats_camera', 'Cámara estadísticas'), ('show_players_cameras', 'Cámaras turbos'), ('auto_series', 'Sumar victorias automáticamente (API)')]:
             v = tk.BooleanVar(value=self.store.config[k])
             self.vars[k] = v
             ttk.Checkbutton(visibility, text='  '+label, variable=v, command=self.apply,
                             style='Marker.TCheckbutton').pack(anchor='w', pady=5)
+        ttk.Button(visibility, text='Configurar cámaras…', command=self.configure_cameras).pack(anchor='w', pady=6)
         self.entry(visibility, 'Estilo de cortina', 'goal_style', choices=['Torneo Piruleta', 'Bigness League', 'RCS', 'RCK'])
         ttk.Button(visibility, text='Probar cortina de gol', command=self.preview_goal).pack(anchor='w', pady=6)
         ttk.Button(left, text='Aplicar diseño', style='Control.TButton', command=self.apply).pack(anchor='e')
