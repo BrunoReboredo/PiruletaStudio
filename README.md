@@ -234,6 +234,6 @@ Al preparar vídeos, recuperar una preparación de biblioteca o importar los MP4
 
 La conexión y la selección se guardan en `Biblioteca/prepartido.json`. También puedes guardar y cargar una configuración de prepartido. Vista previa usa los datos reales sin cambiar la escena de emisión. Los logos PNG/JPEG/WebP de la fuente admiten enlaces, BLOB y base64. Los logos de postpartido siguen siendo los equipos de la serie.
 
-Postpartido conserva los controles de duración, mostrar hasta ocultar y ocultar, con hasta seis estadísticas básicas. La cabecera incorpora los totales de tiros, salvadas y asistencias de todos los jugadores registrados, incluidos suplentes. El aviso de datos ausentes queda centrado en el pie. El final de serie sigue el orden MVP → victoria → estadísticas.
+Postpartido conserva los controles de duración, mostrar hasta ocultar y ocultar, con hasta seis estadísticas básicas. La cabecera muestra el escudo, el nombre y el resultado de cada equipo. El aviso de datos ausentes queda centrado en el pie. El final de serie sigue el orden MVP → victoria → estadísticas.
 
 Marcador → Elementos incorpora Iconos de acciones. Los eventos de gol, asistencia, parada, tiro y demolición muestran el icono original animado durante 4,5 segundos. Se ocultan durante repeticiones. Los recursos y su referencia de origen están incluidos en `vendor/overlay/assets/action-icons-source.txt`. También se ajustan la altura y posición de las barras de jugadores y el tamaño del turbo con seis cámaras, según Overlay 1.2.4.

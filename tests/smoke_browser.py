@@ -156,7 +156,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
  sample.prematch=null;sample.postmatch.visible=true;
  sample.postmatch.match.players=[{Name:'A1',TeamNum:0,Shots:1,Saves:2,Assists:0},{Name:'A2',TeamNum:0,Shots:3,Saves:0,Assists:2},{Name:'B1',TeamNum:1,Shots:2,Saves:1,Assists:1}];
  sample.config.metrics=['Shots'];statsWindow.render(sample);
- if(frame.getElementById('teamtotals0').querySelector('b').textContent!=='4')throw Error('Team shots total');
+ if(frame.querySelector('.team-totals'))throw Error('Unexpected team totals under names');
  const preConfig=JSON.parse(JSON.stringify(sample.config));
  preConfig.teams[0].name='Alpha database';preConfig.teams[1].name='Beta database';
  preConfig.event='Liga';preConfig.round='Final';
