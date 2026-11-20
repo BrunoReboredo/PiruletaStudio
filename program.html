@@ -22,7 +22,7 @@ function fieldOpeningCanEnd(){
  return now-fieldExitRequestedAt>=8000;
 }
 async function showScene(p){
- const target=p==='complete'?'end':p,change=++sceneChange,black=$('fade');
+ const target=p==='complete'?'end':p==='prematch'?'stats':p,change=++sceneChange,black=$('fade');
  fieldExitRequestedAt=null;
  if(p==='field')fieldStartedAt=null;
  const from=Number(getComputedStyle(black).opacity);

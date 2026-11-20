@@ -218,7 +218,7 @@ class AssetsTests(unittest.TestCase):
         self.addCleanup(server.server_close)
         self.addCleanup(server.shutdown)
         url = f'http://127.0.0.1:{server.server_port}'
-        for route in ('/program', '/overlay', '/postmatch', '/state', '/boost-animation.js', '/assets/torneo.png'):
+        for route in ('/program', '/overlay', '/postmatch', '/state', '/boost-animation.js', '/assets/torneo.png', '/team-totals.js', '/assets/action-goal.png', '/assets/action-assist.png', '/assets/action-shot.png', '/assets/action-save.png', '/assets/action-demo.png'):
             with urlopen(url+route) as response:
                 self.assertEqual(response.status, 200)
         with urlopen(Request(url+'/media/pre', headers={'Range': 'bytes=2-5'})) as response:

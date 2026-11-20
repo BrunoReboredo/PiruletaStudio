@@ -183,7 +183,7 @@ class MarkerPanel(OverlayApp):
         self.entry(design, 'Opacidad (%)', 'opacity', numeric=(10, 100))
         self.entry(design, 'Posición horizontal', 'x', numeric=(0, 1900))
         self.entry(design, 'Posición vertical', 'y', numeric=(0, 1000))
-        for k, label in [('show_logos', 'Escudos de equipos'), ('show_players', 'Turbo de todos los jugadores'), ('show_stats', 'Estadísticas del jugador en cámara'), ('show_boost', 'Turbo del jugador en cámara'), ('show_events', 'Cortina de gol'), ('show_goal_replay', 'Barra de repetición de gol'), ('auto_series', 'Sumar victorias automáticamente (API)')]:
+        for k, label in [('show_logos', 'Escudos de equipos'), ('show_players', 'Turbo de todos los jugadores'), ('show_stats', 'Estadísticas del jugador en cámara'), ('show_boost', 'Turbo del jugador en cámara'), ('show_events', 'Cortina de gol'), ('show_player_actions', 'Iconos de acciones'), ('show_goal_replay', 'Barra de repetición de gol'), ('auto_series', 'Sumar victorias automáticamente (API)')]:
             v = tk.BooleanVar(value=self.store.config[k])
             self.vars[k] = v
             ttk.Checkbutton(visibility, text='  '+label, variable=v, command=self.apply,
@@ -289,6 +289,8 @@ class MarkerPanel(OverlayApp):
             name.set(camera.get('name', ''))
             url.set(camera.get('url', ''))
         self.owner.refresh_metric_controls()
+        if hasattr(self.owner, 'prematch_panel'):
+            self.owner.prematch_panel.sync(reconnect=True)
         if hasattr(self.owner,'mvp_delay'):
             self.owner.mvp_delay.set(str(self.store.config.get('mvp_delay',3)))
 

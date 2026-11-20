@@ -9,6 +9,7 @@ import threading
 import time
 import uuid
 import tkinter as tk
+from prematch_panel import PrematchPanel
 from tkinter import ttk, filedialog, colorchooser, messagebox
 from pathlib import Path
 import webbrowser
@@ -29,7 +30,7 @@ if os.name == 'nt':
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('PiruletaStudio.Desktop')
 DATA = (Path(sys.executable).resolve().parent if getattr(sys, 'frozen', False) else ROOT)/'data'
 LIBRARY = Path(os.environ.get('LOCALAPPDATA', str(Path.home())))/'Piruleta Studio'/'Biblioteca'
-LABELS = dict(field='Campo', pre='Coches', game='Partido', stats='Estadísticas',
+LABELS = dict(prematch='Prepartido · estadísticas', field='Campo', pre='Coches', game='Partido', stats='Estadísticas',
               victory0='Victoria A', victory1='Victoria B', complete='Fin de serie')
 
 
@@ -247,6 +248,14 @@ class App:
         ttk.Button(view, text='Cortar animación', command=lambda: self.store.duration('cut')).pack(side='left', padx=10)
 
     def build_stats_controls(self, parent):
+        self.statistics_tabs = ttk.Notebook(parent)
+        self.statistics_tabs.pack(fill='both', expand=True)
+        prematch_page = ttk.Frame(self.statistics_tabs, padding=12)
+        postmatch_page = ttk.Frame(self.statistics_tabs, padding=12)
+        self.statistics_tabs.add(prematch_page, text='Prepartido')
+        self.statistics_tabs.add(postmatch_page, text='Postpartido')
+        self.prematch_panel = PrematchPanel(prematch_page, self, self.library.root/'prepartido.json')
+        parent = postmatch_page
         box = ttk.LabelFrame(parent, text='Estadísticas de final de partido')
         box.pack(fill='x')
         self.stats_auto = tk.BooleanVar(value=True)
@@ -587,6 +596,7 @@ class App:
             return
         if self.render_thread and self.render_thread.is_alive():
             return
+        self.store.begin_prematch()
         self.cancelled.clear()
         if self.vars['victory_header'].get().strip() != self.profile.get('victory_header', self.profile['event']):
             self.change_victory_header()
@@ -629,6 +639,7 @@ class App:
         updated.update(durations=durations, version=uuid.uuid4().hex)
         self.media.clear()
         self.media.update(updated)
+        self.store.begin_prematch()
         with self.store.lock:
             self.store.scene_seconds = durations
         for key, path in updated['files'].items():
@@ -801,6 +812,8 @@ class App:
         self.root.after(100, self.tick)
 
     def close(self):
+        if hasattr(self, 'prematch_panel'):
+            self.prematch_panel.active = False
         self.stop.set()
         self.cancelled.set()
         if self.render_thread and self.render_thread.is_alive():

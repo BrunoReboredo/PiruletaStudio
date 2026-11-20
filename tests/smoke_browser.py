@@ -29,6 +29,7 @@ def main():
 window.addEventListener('error',e=>document.body.dataset.error=e.message);
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{try{
+ for(let n=0;n<100&&revision<0;n++)await wait(50);
  await wait(750);
  // Advance compositor animations explicitly in headless virtual time.
  for(let n=0;n<3;n++){if(blackAnimation)blackAnimation.finish();await wait(10)}
@@ -146,6 +147,25 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
  sample.config.show_players_cameras=false;sample.config.show_stats_camera=true;overlay.render(sample);
  const focusScale=Number(overlayDoc.getElementById('boost').style.transform.match(/scale\\(([^)]+)/)[1]);
  if(focusScale!==fullScale)throw Error('Stats camera changed boost size');
+ sample.config.show_player_actions=true;sample.player_actions=[{Name:'QA0',TeamNum:0,kind:'save',id:900,remaining:4500}];
+ overlay.render(sample);
+ const action=overlayDoc.querySelector('.player-action:not(.hidden)');
+ if(!action||action.getAttribute('aria-label')!=='Parada')throw Error('Action icon');
+ sample.player_actions=[];overlay.render(sample);
+ if(overlayDoc.querySelector('.player-action:not(.hidden)'))throw Error('Action cleanup');
+ sample.prematch=null;sample.postmatch.visible=true;
+ sample.postmatch.match.players=[{Name:'A1',TeamNum:0,Shots:1,Saves:2,Assists:0},{Name:'A2',TeamNum:0,Shots:3,Saves:0,Assists:2},{Name:'B1',TeamNum:1,Shots:2,Saves:1,Assists:1}];
+ sample.config.metrics=['Shots'];statsWindow.render(sample);
+ if(frame.getElementById('teamtotals0').querySelector('b').textContent!=='4')throw Error('Team shots total');
+ const preConfig=JSON.parse(JSON.stringify(sample.config));
+ preConfig.teams[0].name='Alpha database';preConfig.teams[1].name='Beta database';
+ preConfig.event='Liga';preConfig.round='Final';
+ const prePlayers=[{Name:'Alpha database',TeamNum:0,Shots:10},{Name:'Beta database',TeamNum:1,Shots:8}];
+ sample.prematch={kind:'prematch',visible:true,config:preConfig,match:{players:prePlayers,scores:['—','—']},statistics:{match:[prePlayers,[{Shots:10},{Shots:8}]]},metrics:['Shots'],team_mode:'total',individual:false,period:'tournament'};
+ statsWindow.render(sample);
+ if(!stage.classList.contains('prematch')||frame.querySelector('.versus>b').textContent!=='CARA A CARA')throw Error('Prematch layout');
+ if(frame.getElementById('name0').textContent!=='Alpha database')throw Error('Prematch independent identity');
+ if(frame.getElementById('game').textContent!=='Final · BO4')throw Error('Prematch round');
  document.body.dataset.qa='PASS';
 }catch(e){document.body.dataset.qa='FAIL: '+e.message}})();
 </script>
@@ -159,7 +179,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
         def do_GET(self):
             route = self.path.split('?')[0]
             if route == '/metrics':
-                from vendor.postmatch.basic_metrics import CATALOG
+                from vendor.postmatch.data_sources import PRE_CATALOG as CATALOG
                 data, kind = json.dumps(CATALOG).encode(), 'application/json'
             elif route == '/state':
                 data, kind = json.dumps(state).encode(), 'application/json'
@@ -167,6 +187,8 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
                 data, kind = program.encode(), 'text/html'
             elif route == '/overlay':
                 data, kind = (ROOT/'vendor/overlay/overlay.html').read_bytes(), 'text/html'
+            elif route == '/team-totals.js':
+                data, kind = (ROOT/'vendor/postmatch/team-totals.js').read_bytes(), 'application/javascript'
             elif route == '/overlay-visibility.js':
                 data, kind = (ROOT/'vendor/postmatch/overlay-visibility.js').read_bytes(), 'application/javascript'
             elif route == '/boost-animation.js':

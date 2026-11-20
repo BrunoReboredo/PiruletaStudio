@@ -222,3 +222,18 @@ Abre `Abrir Piruleta Studio.cmd` para usar la 0.8.5. Los enlaces OBS Ninja / VDO
 - Pestañas del marcador a todo ancho y botones inferiores reservados. Launcher y ejecutable identifican la versión 0.8.5.
 
 Cierra la app y abre `Abrir Piruleta Studio.cmd`. El launcher abre el ejecutable 0.8.5 cuando está instalado y dispone de ejecución desde código como alternativa. Prepara nuevos vídeos para ver la ambientación actualizada. Campo conserva sus 15 segundos y escudos desde el segundo 6.
+
+
+## Prepartido estadístico e iconos de acciones
+
+Estadísticas contiene dos pestañas: Prepartido y Postpartido.
+
+En Prepartido conecta Google Sheets, SQLite o un DSN SQL/ODBC, asigna las columnas y selecciona los dos equipos de la fuente. Sus nombres, logos, torneo, ronda y selección de hasta seis estadísticas son independientes del postpartido. Puedes filtrar los datos por columna y elegir composición por equipos o jugadores. Las conexiones a Sheets privadas admiten JSON de cuenta de servicio. La app guarda la ruta al JSON, sin copiar la clave. Los controladores ODBC se configuran en Windows.
+
+Al preparar vídeos, recuperar una preparación de biblioteca o importar los MP4, Studio muestra automáticamente CARA A CARA si la fuente está lista. Si la fuente termina de cargar después, la previa aparece en ese momento. Se mantiene durante toda la preparación y mientras eliges Campo o Coches. Al confirmar la cinemática se retira, y no vuelve a aparecer durante esa serie aunque lleguen señales de nuevas partidas. Una nueva configuración de equipos habilita la previa de la siguiente serie. Sin una fuente válida se indica el problema en Conexión y datos.
+
+La conexión y la selección se guardan en `Biblioteca/prepartido.json`. También puedes guardar y cargar una configuración de prepartido. Vista previa usa los datos reales sin cambiar la escena de emisión. Los logos PNG/JPEG/WebP de la fuente admiten enlaces, BLOB y base64. Los logos de postpartido siguen siendo los equipos de la serie.
+
+Postpartido conserva los controles de duración, mostrar hasta ocultar y ocultar, con hasta seis estadísticas básicas. La cabecera incorpora los totales de tiros, salvadas y asistencias de todos los jugadores registrados, incluidos suplentes. El aviso de datos ausentes queda centrado en el pie. El final de serie sigue el orden MVP → victoria → estadísticas.
+
+Marcador → Elementos incorpora Iconos de acciones. Los eventos de gol, asistencia, parada, tiro y demolición muestran el icono original animado durante 4,5 segundos. Se ocultan durante repeticiones. Los recursos y su referencia de origen están incluidos en `vendor/overlay/assets/action-icons-source.txt`. También se ajustan la altura y posición de las barras de jugadores y el tamaño del turbo con seis cámaras, según Overlay 1.2.4.

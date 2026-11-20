@@ -167,6 +167,20 @@ class WorkflowTests(unittest.TestCase):
         s.ingest(dict(Event='MatchEnded',Data=dict(WinnerTeamNum=0,MatchGuid='public')))
         self.assertEqual(s.config['teams'][0]['wins'],0)
 
+    def test_goal_replay_speed_is_already_kmh(self):
+        store = self.store
+        store.transition('game')
+        store.playlist_id = 6
+        for speed, expected in [(87.3, 87), (100, 100), (112.4, 112), (100.5, 101), (0, 0),
+                                (None, None), (-1, None), (float('nan'), None), (float('inf'), None), (True, None)]:
+            with self.subTest(speed=speed):
+                store.ingest(dict(Event='RoundStarted', Data={}))
+                store.ingest(dict(Event='GoalScored', Data=dict(GoalSpeed=speed, Scorer=dict(Name='Piru', TeamNum=0))))
+                store.ingest(dict(Event='GoalReplayStart', Data={}))
+                self.assertEqual(store.snapshot()['goal_replay']['speed_kmh'], expected)
+                store.ingest(dict(Event='GoalScored', Data=dict(GoalSpeed=2, Scorer=dict(Name='Other', TeamNum=1))))
+                self.assertEqual(store.snapshot()['goal_replay']['speed_kmh'], expected)
+
     def test_goal_curtain_deduplicates_replays_and_survives_final_goal(self):
         s=self.store
         s.config.update(bestof=1,show_events=True)
@@ -464,6 +478,54 @@ class DesktopIntegrationTests(unittest.TestCase):
         marker.clear_teams()
         self.assertTrue(all(not t['name'] and not t['logo'] for t in self.app.store.config['teams']))
         self.assertTrue(self.app.profile['teams'][0]['name'])
+
+    def test_prematch_stays_until_opening_is_confirmed(self):
+        from vendor.overlay.app import normalize_config
+        from vendor.postmatch.prematch import source_signature
+        store = self.app.store
+        store.config = normalize_config({**store.config, 'pre_metrics': ['Shots'],
+            'database': dict(provider='SQLite', location='fixture.db', team_names=['Alpha', 'Beta'])})
+        store.prematch_data = dict(headers=['Team', 'Shots'], rows=[dict(Team='Alpha', Shots=10), dict(Team='Beta', Shots=8)])
+        store.prematch_source = source_signature(store.config['database'])
+        self.app.prematch_panel.sync()
+        for key, seconds in [('field', 15), ('pre', 13), ('victory0', 4), ('victory1', 4)]:
+            video = Path(self.temp.name)/(key+'.mp4')
+            video.write_bytes(mp4(seconds))
+            self.app.video_fields[key].set(str(video))
+        self.app.use_manual_videos()
+        self.assertEqual(store.phase, 'prematch')
+        with patch('app.App.choose_opening', return_value=None):
+            self.app.start()
+        self.assertEqual(store.phase, 'prematch')
+        self.assertFalse(store.prematch_consumed)
+        with patch('app.App.choose_opening', return_value='field'):
+            self.app.start()
+        self.assertEqual(store.phase, 'field')
+        self.assertTrue(store.prematch_consumed)
+        self.assertIsNone(store.snapshot()['prematch'])
+        self.assertEqual([self.app.statistics_tabs.tab(i, 'text') for i in range(2)], ['Prepartido', 'Postpartido'])
+
+    def test_database_connect_automatically_shows_waiting_prematch(self):
+        import sqlite3
+        import time
+        path = Path(self.temp.name)/'source.db'
+        conn = sqlite3.connect(path)
+        try:
+            conn.execute('CREATE TABLE stats (Team TEXT, Shots INTEGER)')
+            conn.executemany('INSERT INTO stats VALUES (?, ?)', [('Alpha', 10), ('Beta', 8)])
+            conn.commit()
+        finally:
+            conn.close()
+        self.app.store.begin_prematch()
+        self.app.prematch_panel.restore(dict(database=dict(provider='SQLite', location=str(path),
+            query='SELECT * FROM stats', team_names=['Alpha', 'Beta'], event='Liga', round='Final'), pre_metrics=['Shots']))
+        timeout = time.monotonic()+15
+        while self.app.store.phase != 'prematch' and time.monotonic() < timeout:
+            self.root.update()
+            time.sleep(0.02)
+        self.assertEqual(self.app.store.phase, 'prematch')
+        self.assertTrue((self.app.library.root/'prepartido.json').is_file())
+        self.assertEqual(self.app.store.snapshot()['prematch']['config']['teams'][0]['name'], 'Alpha')
 
     def test_stats_picker_rejects_seventh_and_preserves_one_minimum(self):
         with patch.object(self.app,'error') as error:

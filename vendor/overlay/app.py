@@ -13,6 +13,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import webbrowser
 from urllib.parse import urlsplit, parse_qsl, urlencode
 
+from vendor.postmatch.prematch import normalize_prematch
 from vendor.postmatch.basic_metrics import DEFAULT_METRICS, normalize_metrics
 
 ROOT = Path(__file__).resolve().parent
@@ -64,6 +65,7 @@ def swap_team_sides(config):
 
 
 DEFAULT = {
+    **normalize_prematch({}),
     'metrics': DEFAULT_METRICS, 'mvp_delay': 3.0,
     'event': 'TORNEO PIRULETA', 'round': 'GRAN FINAL', 'game': 1, 'bestof': 5,
     'teams': [{'name': 'PINK CANDY', 'logo': '', 'wins': 0},
@@ -71,7 +73,7 @@ DEFAULT = {
     'colors': {'pink': '#fa54b7', 'coral': '#ff8875', 'yellow': '#ffd14c',
                'dark': '#181426', 'text': '#ffffff'},
     'show_logos': True, 'show_players': True, 'show_stats': True,
-    'show_boost': True, 'show_events': True, 'show_goal_replay': True,
+    'show_boost': True, 'show_events': True, 'show_player_actions': True, 'show_goal_replay': True,
     'show_stats_camera': False, 'show_players_cameras': False, 'auto_replay_cameras': False, 'cameras': [],
     'design': 'rounded', 'font': 'Verdana', 'scale': 100, 'opacity': 100,
     'x': 360, 'y': 0, 'auto_series': True, 'custom_css': '', 'api_port': 49123,
@@ -131,6 +133,7 @@ def normalize_config(raw):
     if not isinstance(raw, dict):
         raise ValueError('El perfil debe ser un objeto JSON.')
     c = copy.deepcopy(DEFAULT)
+    c.update(normalize_prematch(raw))
     c['metrics'] = normalize_metrics(raw.get('metrics', DEFAULT_METRICS))
     delay = float(raw.get('mvp_delay',3))
     if not .5 <= delay <= 30:
@@ -441,6 +444,7 @@ def preview_snapshot(store, replay=False):
     """Example data for preview only; never writes to the live match or connection."""
     snapshot = store.snapshot()
     snapshot['overlay_visible'] = True
+    snapshot['goal_replay_active'] = replay
     snapshot['goal_replay'] = {'name': 'PIRU', 'team': 0, 'speed_kmh': 104} if replay else None
     snapshot['match'] = {
         'scores': [2, 1], 'time': 193, 'overtime': False, 'target': 'PIRU', 'banner': '',
@@ -452,6 +456,11 @@ def preview_snapshot(store, replay=False):
     for player, camera in zip(snapshot['match']['players'], snapshot['config']['cameras']):
         player['Name'] = camera['name']
     snapshot['match']['target'] = snapshot['match']['players'][0]['Name']
+    sample_tick = int(time.monotonic() // 8)
+    sample_remaining = max(0, int((4.5 - time.monotonic() % 8) * 1000))
+    snapshot['player_actions'] = [dict(player, kind=kind, id=f'preview-{sample_tick}-{i}', remaining=sample_remaining)
+                                  for i, (player, kind) in enumerate(zip(snapshot['match']['players'],
+                                                                       ('goal', 'assist', 'save', 'shot', 'demo')))] if not replay else []
     if replay:
         snapshot['goal_replay']['name'] = snapshot['match']['target']
     return snapshot

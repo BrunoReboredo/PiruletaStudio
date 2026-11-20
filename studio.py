@@ -9,10 +9,11 @@ import time
 import zipfile
 from pathlib import Path
 from vendor.postmatch.app import Store, GameConnection, series_state, DEFAULT
+from vendor.postmatch.prematch import PrematchState, PRE_KEYS, source_signature
 from vendor.overlay.app import normalize_config, swap_team_sides, PRIVATE_PLAYLISTS
 
 CARS = ('Octane', 'Fennec', 'Dominus')
-PHASES = ('field', 'pre', 'game', 'victory0', 'victory1', 'stats', 'complete')
+PHASES = ('prematch', 'field', 'pre', 'game', 'victory0', 'victory1', 'stats', 'complete')
 
 
 def defaults():
@@ -131,10 +132,14 @@ def fingerprint(profile, include_stadium=True):
     return hashlib.sha256(raw).hexdigest()
 
 
-class Studio(Store):
+class Studio(PrematchState, Store):
     def __init__(self, clock=time.monotonic):
         super().__init__()
         self.clock = clock
+        self.init_prematch()
+        self.preparation_requested = False
+        self.player_actions = {}
+        self.action_sequence = 0
         self.phase = 'complete'
         self.deadline = None
         self.paused = None
@@ -172,6 +177,11 @@ class Studio(Store):
     def configure(self, profile):
         p = validate(profile)
         with self.lock:
+            pre_config = {key: copy.deepcopy(self.config[key]) for key in PRE_KEYS}
+            self.prematch = None
+            self.prematch_consumed = False
+            self.preparation_requested = False
+            self.player_actions.clear()
             self.boost_usage.reset()
             self.roster = []
             self.podium_at = None
@@ -181,6 +191,7 @@ class Studio(Store):
             self.match_guid = None
             self.profile = p
             self.config = copy.deepcopy(DEFAULT)
+            self.config.update(pre_config)
             self.config.update(bestof=p['bestof'], event=p['event'], round=p['round'], auto_series=True)
             self.config['api_port'] = p['api_port']
             self.config['show_events'] = True
@@ -217,11 +228,45 @@ class Studio(Store):
             self.revision += 1
             self.history.append(phase)
 
+    def begin_prematch(self):
+        with self.lock:
+            if self.armed or self.prematch_consumed:
+                return
+            self.preparation_requested = True
+            self.try_prematch()
+
+    def try_prematch(self):
+        if not self.preparation_requested or self.armed or self.prematch_consumed:
+            return
+        try:
+            result = self.prematch_preview()
+        except ValueError as exc:
+            self.prematch_error = str(exc)
+            self.prematch = None
+            if self.phase == 'prematch':
+                self.transition('complete')
+            return
+        self.prematch = result
+        self.prematch_error = ''
+        if self.phase != 'prematch':
+            self.transition('prematch')
+
+    def record_action(self, player, kind):
+        if not isinstance(player, dict) or player.get('TeamNum') not in (0, 1) or not player.get('Name'):
+            return
+        self.action_sequence += 1
+        key = (player['TeamNum'], player.get('Shortcut'), player['Name'])
+        self.player_actions[key] = dict(Name=player['Name'], TeamNum=player['TeamNum'],
+                                       Shortcut=player.get('Shortcut'), kind=kind,
+                                       id=self.action_sequence, until=self.clock() + 4.5)
+
     def start(self, opening='pre'):
         if opening not in ('pre','field'):
             raise ValueError('Elige Campo o Coches para comenzar.')
         with self.lock:
             self.armed = True
+            self.prematch = None
+            self.prematch_consumed = True
             self.transition(opening, 15 if opening == 'field' else self.scene_seconds[opening])
             self.field_opening = opening == 'field'
 
@@ -322,6 +367,19 @@ class Studio(Store):
         if not isinstance(data, dict):
             return False
         with self.lock:
+            if event in ('MatchCreated', 'ReplayCreated', 'GoalReplayStart', 'RoundStarted', 'MatchDestroyed', 'MatchStarted'):
+                self.player_actions.clear()
+            if (self.armed and self.phase == 'game' and self.config['show_player_actions']
+                    and self.playlist_id in PRIVATE_PLAYLISTS and not self.history_replay
+                    and not self.result_latched and not self.in_goal_replay and not data.get('bReplay')):
+                if event == 'StatfeedEvent':
+                    kinds = {'goal': 'goal', 'assist': 'assist', 'save': 'save', 'epicsave': 'save',
+                             'shot': 'shot', 'shotongoal': 'shot', 'demolish': 'demo', 'demolition': 'demo'}
+                    kind = kinds.get(str(data.get('EventName', '')).replace('_', '').lower())
+                    if kind:
+                        self.record_action(data.get('MainTarget'), kind)
+                elif event == 'GoalScored' and self.goal_armed:
+                    self.record_action(data.get('Scorer'), 'goal')
             if event == 'MatchCreated':
                 self.auto_camera_until = 0
                 self.last_goal = None
@@ -364,7 +422,8 @@ class Studio(Store):
                     team = scorer.get('TeamNum')
                     self.goal_team = 1 if team == 1 else 0
                     speed = data.get('GoalSpeed')
-                    speed_kmh = (round(speed * 0.036) if type(speed) in (int, float)
+                    # GoalSpeed is already reported in km/h by the live exporter.
+                    speed_kmh = (math.floor(speed + 0.5) if type(speed) in (int, float)
                                  and math.isfinite(speed) and speed >= 0 else None)
                     self.last_goal = {'name': scorer.get('Name') or '', 'team': team, 'speed_kmh': speed_kmh}
                     if self.config['show_events']:
@@ -585,6 +644,10 @@ class Studio(Store):
     def snapshot(self):
         with self.lock:
             state = super().snapshot()
+            state['prematch'] = copy.deepcopy(self.prematch) if self.phase == 'prematch' else None
+            now = self.clock()
+            self.player_actions = {key: action for key, action in self.player_actions.items() if action['until'] > now}
+            state['player_actions'] = [dict(action, remaining=int((action['until'] - now) * 1000)) for action in self.player_actions.values()] if self.config['show_player_actions'] and self.phase == 'game' else []
             state['app'] = dict(version='0.8.5',developer='Bruno Reboredo Álvarez')
             state['goal_effect'] = dict(id=self.goal_sequence, remaining=max(0,int((self.goal_until-self.clock())*1000)),team=self.goal_team)
             if state.get('postmatch'):

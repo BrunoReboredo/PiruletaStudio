@@ -3,13 +3,14 @@ import mimetypes
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs, unquote
-from vendor.postmatch.basic_metrics import CATALOG
+from vendor.postmatch.data_sources import PRE_CATALOG as CATALOG
 from vendor.overlay.app import FONT_DIRECTORY, FONT_TYPES, MAX_FONT_BYTES, preview_snapshot
 
 ROOT = Path(__file__).resolve().parent
 OVERLAY_ASSETS = ROOT/'vendor/overlay/assets'
 ASSETS = {f'/assets/{name}': OVERLAY_ASSETS/name for name in
-          ('torneo.png', 'bigness-league.png', 'rcs.png', 'rck.png', 'montserrat.ttf')}
+          ('torneo.png', 'bigness-league.png', 'rcs.png', 'rck.png', 'montserrat.ttf',
+           'action-goal.png', 'action-assist.png', 'action-save.png', 'action-shot.png', 'action-demo.png')}
 
 
 def make_server(store, media, port=18767):
@@ -22,9 +23,31 @@ def make_server(store, media, port=18767):
 
         def do_GET(self, head=False):
             route = urlsplit(self.path).path
+            if route.startswith('/prematch-logo/'):
+                identity = route.removeprefix('/prematch-logo/')
+                with store.lock:
+                    logo = store.prematch_logos.get(identity)
+                if logo is None:
+                    self.send_error(404)
+                    return
+                data, mime = logo
+                self.send_response(200)
+                self.send_header('Content-Type', mime)
+                self.send_header('Content-Length', str(len(data)))
+                self.end_headers()
+                if not head:
+                    self.wfile.write(data)
+                return
             if route in ('/state', '/preview-state', '/metrics'):
                 state = preview_snapshot(store, parse_qs(urlsplit(self.path).query).get('replay') == ['1']) if route == '/preview-state' else store.snapshot()
                 if route == '/preview-state':
+                    state['prematch'] = None
+                    if parse_qs(urlsplit(self.path).query).get('prematch') == ['1']:
+                        try:
+                            state['prematch'] = store.prematch_preview()
+                        except ValueError as exc:
+                            self.send_error(409, str(exc).encode('ascii', 'replace').decode())
+                            return
                     state['overlay_visible'] = True
                     value=parse_qs(urlsplit(self.path).query).get('players',['3'])[0]
                     size=int(value) if value in ('1','2','3') else 3
@@ -45,6 +68,7 @@ def make_server(store, media, port=18767):
                 return
             routes = {'/': ROOT/'program.html', '/program': ROOT/'program.html',
                       '/overlay': ROOT/'vendor/overlay/overlay.html',
+                      '/team-totals.js': ROOT/'vendor/postmatch/team-totals.js',
                       '/postmatch': ROOT/'vendor/postmatch/postmatch.html',
                       '/audio/engine-start.wav': ROOT/'vendor/audio/engine-start.wav',
                       '/overlay-visibility.js': ROOT/'vendor/postmatch/overlay-visibility.js',

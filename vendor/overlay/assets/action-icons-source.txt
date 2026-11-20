@@ -1,0 +1,10 @@
+Rocket League in-game point icons
+Source: Rocket League Wiki (Fandom), https://rocketleague.fandom.com/wiki/Category:Point_icons
+Downloaded original PNG files (128 x 128), without image modifications.
+Game artwork belongs to its respective rights holders.
+
+action-goal.png: File:Goal_points_icon.png
+action-assist.png: File:Assist_points_icon.png
+action-save.png: File:Save_points_icon.png
+action-shot.png: File:Shot_on_Goal_points_icon.png
+action-demo.png: File:Demolition_points_icon.png
