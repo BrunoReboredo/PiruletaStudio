@@ -31,8 +31,8 @@ class LibraryTests(unittest.TestCase):
         self.signature.start()
         self.addCleanup(self.signature.stop)
         def renderer(blender, config, folder, cancelled):
-            scene = config['only_scenes'][0]
-            (folder/(scene+'.mp4')).write_bytes(mp4(13 if scene == 'Prepartido' else 2))
+            for scene in config['render_clips']:
+                (folder/(scene+'.mp4')).write_bytes(mp4(13 if scene == 'Prepartido' else 4))
         self.runner_patch = patch('render.run_job', side_effect=renderer)
         self.runner = self.runner_patch.start()
         self.addCleanup(self.runner_patch.stop)
@@ -70,7 +70,7 @@ class LibraryTests(unittest.TestCase):
 
     def test_second_request_renders_nothing_even_with_different_file_names(self):
         first = self.prepare()
-        self.assertEqual(self.runner.call_count, 3)
+        self.assertEqual(self.runner.call_count, 1)
         other = copy.deepcopy(self.profile)
         renamed = self.root/'another-logo.png'
         shutil.copyfile(other['teams'][0]['logo'], renamed)
@@ -88,8 +88,9 @@ class LibraryTests(unittest.TestCase):
         changed['teams'][0]['color'] = '#123456'
         self.runner.reset_mock()
         result = self.prepare(changed)
-        self.assertEqual(self.runner.call_count, 2)
+        self.assertEqual(self.runner.call_count, 1)
         self.assertEqual(set(result['reused']), {'field','victory1'})
+        self.assertEqual(self.runner.call_args.args[1]['render_clips'], ['Prepartido', 'Victoria_A'])
 
     def test_team_swap_reuses_both_victories(self):
         self.prepare()
@@ -106,7 +107,7 @@ class LibraryTests(unittest.TestCase):
         cycles['render_engine'] = 'CYCLES'
         self.runner.reset_mock()
         result = self.prepare(cycles)
-        self.assertEqual(self.runner.call_count, 3)
+        self.assertEqual(self.runner.call_count, 1)
         self.assertEqual(result['reused'], ['field'])
         self.assertTrue(all(call.args[1]['engine'] == 'CYCLES' for call in self.runner.call_args_list))
 
@@ -132,7 +133,7 @@ class LibraryTests(unittest.TestCase):
         self.runner.reset_mock()
         with patch('render.renderer_signature', return_value='template-v2'):
             self.prepare()
-        self.assertEqual(self.runner.call_count, 3)
+        self.assertEqual(self.runner.call_count, 1)
 
     def test_delivery_contains_only_mp4_and_can_be_reloaded(self):
         from render import load_preparation
@@ -188,6 +189,26 @@ class LibraryTests(unittest.TestCase):
         self.runner.reset_mock()
         self.assertEqual(len(self.prepare()['reused']), 3)
         self.runner.assert_not_called()
+
+
+    def test_victory_heading_regenerates_only_both_victories(self):
+        self.prepare()
+        changed = dict(self.profile, victory_header='CAMPEONES')
+        self.runner.reset_mock()
+        result = self.prepare(changed)
+        self.assertEqual(set(result['reused']), {'field', 'pre'})
+        self.assertEqual(self.runner.call_count, 1)
+        self.assertEqual(self.runner.call_args.args[1]['render_clips'], ['Victoria_A', 'Victoria_B'])
+        self.assertEqual(self.runner.call_args.args[1]['victory_header'], 'CAMPEONES')
+
+    def test_completed_clip_is_cached_when_later_clip_fails(self):
+        def fail_after_pre(blender, config, folder, cancelled):
+            (folder/'Prepartido.mp4').write_bytes(mp4(13))
+            raise RuntimeError('Interrupted')
+        self.runner.side_effect = fail_after_pre
+        with self.assertRaisesRegex(RuntimeError, 'Interrupted'):
+            self.prepare()
+        self.assertEqual(len(list((self.library.root/'videos').glob('*/video.mp4'))), 2)
 
 
 if __name__ == '__main__':

@@ -66,6 +66,9 @@ def detect_decal(path):
 
 def validate(profile):
     p = copy.deepcopy(profile)
+    p['victory_header'] = str(p.get('victory_header', p.get('event', ''))).strip()
+    if len(p['victory_header']) > 80:
+        raise ValueError('El texto de victoria admite un máximo de 80 caracteres.')
     p['render_engine'] = str(p.get('render_engine', 'EEVEE')).upper()
     if p['render_engine'] not in ('EEVEE', 'CYCLES'):
         raise ValueError('Elige EEVEE (rápido) o CYCLES (calidad).')
@@ -118,6 +121,8 @@ def fingerprint(profile, include_stadium=True):
         data['stadium'] = profile['stadium']
     if profile.get('paint_finish','Brillante') != 'Brillante':
         data['paint_finish'] = profile['paint_finish']
+    if profile.get('victory_header', profile['event']) != profile['event']:
+        data['victory_header'] = profile['victory_header']
     raw = json.dumps(data, sort_keys=True).encode()
     for team in profile['teams']:
         for field in ('logo', 'skin'):
@@ -337,7 +342,7 @@ class Studio(Store):
                         and self.config['auto_replay_cameras'] and self.armed
                         and self.phase == 'game' and not self.history_replay
                         and self.playlist_id in PRIVATE_PLAYLISTS):
-                    self.auto_camera_until = self.clock() + 4.5
+                    self.auto_camera_until = self.clock() + 6.5
                 self.in_goal_replay = False
                 self.last_goal = None
             elif event == 'PodiumStart':
@@ -580,7 +585,7 @@ class Studio(Store):
     def snapshot(self):
         with self.lock:
             state = super().snapshot()
-            state['app'] = dict(version='0.8.3',developer='Bruno Reboredo Álvarez')
+            state['app'] = dict(version='0.8.5',developer='Bruno Reboredo Álvarez')
             state['goal_effect'] = dict(id=self.goal_sequence, remaining=max(0,int((self.goal_until-self.clock())*1000)),team=self.goal_team)
             if state.get('postmatch'):
                 state['postmatch']['visible'] = self.phase == 'stats'
@@ -597,6 +602,8 @@ class Studio(Store):
             replay_visible = (self.phase == 'game' and self.in_goal_replay and self.last_goal is not None
                               and not self.history_replay and self.config['show_goal_replay']
                               and self.config['design'] != 'RCK' and self.playlist_id in PRIVATE_PLAYLISTS)
+            state['goal_replay_active'] = (self.phase == 'game' and self.in_goal_replay
+                                           and not self.history_replay and self.playlist_id in PRIVATE_PLAYLISTS)
             state['goal_replay'] = copy.deepcopy(self.last_goal) if replay_visible else None
             if replay_visible:
                 state['studio']['gameplay'] = True

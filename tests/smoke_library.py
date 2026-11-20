@@ -23,7 +23,7 @@ calls = []
 def limited_runner(blender, config, folder, cancelled):
     config = copy.deepcopy(config)
     config.update(test_frames=2, samples=32, preview_resolution=50)
-    calls.append(config['only_scenes'][0])
+    calls.append(config['render_clips'])
     original_runner(blender, config, folder, cancelled)
 
 original_field = render.field.render
@@ -38,9 +38,9 @@ def checked_field(profile, folder, report, cancelled):
 
 with patch('render.run_job', side_effect=limited_runner), patch('render.field.render',side_effect=checked_field):
     first = render.prepare(profile, destination, print, threading.Event(), library_dir=library)
-    assert len(calls) == 3
+    assert len(calls) == 1
     second = render.prepare(profile, destination, print, threading.Event(), library_dir=library)
-    assert len(calls) == 3, 'La segunda preparación no debe volver a ejecutar Blender.'
+    assert len(calls) == 1, 'La segunda preparación no debe volver a ejecutar Blender.'
     assert len(second['reused']) == 4
     assert all(Path(p).is_file() for p in second['files'].values())
 print('EEVEE 1080p + caché real: tres clips Blender y Campo rápido; cuatro vídeos reutilizados sin ejecutar Blender.', flush=True)

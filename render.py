@@ -68,36 +68,43 @@ def prepare(profile, destination, report, cancelled, library_dir=None):
     work = library.root/'trabajos'/output.name
     work.mkdir(parents=True,exist_ok=True)
     reused = []
-    for key in ('field','pre', 'victory0', 'victory1'):
-        if cancelled.is_set():
-            raise RuntimeError('Preparación cancelada. Los vídeos completos se conservan en la biblioteca.')
+    for key in ('field', 'pre', 'victory0', 'victory1'):
         if clips[key] is not None:
             reused.append(key)
             report('Reutilizando '+NAMES[key]+' de la biblioteca · sin render')
-            continue
-        folder = work/('trabajo_'+key)
+    if clips['field'] is None:
+        folder = work/'trabajo_field'
         folder.mkdir()
-        if key == 'field':
-            report('Generando Campo · exportación rápida')
-            video = field.render(profile, folder, report, cancelled)
-            clips[key] = library.save_clip(keys[key], video, dict(engine='fast',kind='Campo'))
-            continue
-        if key == 'pre':
-            teams = {letter: copy.deepcopy(team) for letter, team in zip(('A', 'B'), profile['teams'])}
-            scene = 'Prepartido'
-        else:
-            # Canonical winner A makes the victory independent of opponent or side.
-            winner = profile['teams'][int(key[-1])]
-            teams = {letter: copy.deepcopy(winner) for letter in ('A', 'B')}
-            scene = 'Victoria'
+        report('Generando Campo · exportación rápida')
+        video = field.render(profile, folder, report, cancelled)
+        clips['field'] = library.save_clip(keys['field'], video, dict(engine='fast', kind='Campo'))
+    car_clips = {key: name for key, name in
+                 (('pre', 'Prepartido'), ('victory0', 'Victoria_A'), ('victory1', 'Victoria_B'))
+                 if clips[key] is None}
+    if car_clips:
+        folder = work/'trabajo_coches'
+        folder.mkdir()
         config = dict(template=str(ROOT/'vendor/animations/Plantilla.blend'), output=str(folder),
-                      winner='A', victory_header=profile['event'], video=True, resolution=100,
-                      engine=profile.get('render_engine', 'EEVEE'), paint_finish=profile.get('paint_finish','Brillante'), only_scenes=[scene], teams=teams)
-        report('Generando '+NAMES[key]+' · '+config['engine'])
-        run_job(blender, config, folder, cancelled)
-        clips[key] = library.save_clip(keys[key], folder/(scene+'.mp4'),
-                                       dict(engine=config['engine'], kind=scene))
-        report(NAMES[key]+' guardado en la biblioteca')
+                      winner='A', victory_header=profile.get('victory_header', profile['event']),
+                      video=True, resolution=100, render_clips=list(car_clips.values()),
+                      engine=profile.get('render_engine', 'EEVEE'),
+                      paint_finish=profile.get('paint_finish', 'Brillante'),
+                      teams={letter: copy.deepcopy(team) for letter, team in zip(('A', 'B'), profile['teams'])})
+        report('Generando '+', '.join(NAMES[key] for key in car_clips)+' · '+config['engine'])
+        try:
+            run_job(blender, config, folder, cancelled)
+        finally:
+            # Completed clips survive a later render failure or cancellation.
+            for key, name in car_clips.items():
+                video = folder/(name+'.mp4')
+                if video.is_file():
+                    clips[key] = library.save_clip(keys[key], video,
+                                                   dict(engine=config['engine'], kind=name))
+                    report(NAMES[key]+' guardado en la biblioteca')
+        if any(clips[key] is None for key in car_clips):
+            raise RuntimeError('Blender no ha completado todos los vídeos solicitados.')
+    if cancelled.is_set():
+        raise RuntimeError('Preparación cancelada. Los vídeos completos se conservan en la biblioteca.')
     files = {}
     for key, clip in clips.items():
         target = output/(NAMES[key]+'.mp4')

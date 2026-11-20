@@ -4,7 +4,7 @@ Aplicación de escritorio para Windows que reúne Animaciones, Overlay y Estadí
 
 ## Abrir
 
-La actualización de esta entrega está en **portable/Piruleta Studio 0.8.3/Piruleta Studio.exe**. Las versiones anteriores se conservan en sus carpetas para no interrumpir trabajos en curso. Abre el ejecutable con doble clic y conserva `_internal` a su lado. No necesita Python instalado. Las compilaciones de desarrollo con `build.ps1` se crean en `portable/Piruleta Studio/`.
+La actualización de esta entrega está en **portable/Piruleta Studio 0.8.5/Piruleta Studio.exe**. Las versiones anteriores se conservan en sus carpetas para no interrumpir trabajos en curso. Abre el ejecutable con doble clic y conserva `_internal` a su lado. No necesita Python instalado. Las compilaciones de desarrollo con `build.ps1` se crean en `portable/Piruleta Studio/`.
 
 Para ejecutar el código fuente, con Python 3.11 o posterior (incluido Tkinter), abre **Abrir Piruleta Studio.cmd**. No necesita paquetes de pip. También puedes ejecutar `python app.py` desde esta carpeta.
 
@@ -198,4 +198,27 @@ Overlay con barra de repetición de gol en los estilos angular, redondeado y cl�
 
 ## Cámaras · 0.8.3
 
-La pestaña Cámaras del marcador contiene las opciones Cámara estadísticas y Cámaras turbos, y los campos para asociar hasta ocho jugadores a sus enlaces OBS Ninja. Aplica la configuración con Aplicar diseño. La opción automática muestra las cámaras de los turbos durante 4,5 segundos al terminar la repetición de un gol. La activación manual mantiene las cámaras visibles. Los ajustes se guardan con el perfil.
+La pestaña Cámaras del marcador contiene las opciones Cámara estadísticas y Cámaras turbos, y los campos para asociar hasta ocho jugadores a sus enlaces OBS Ninja. Aplica la configuración con Aplicar diseño. La opción automática muestra las cámaras de los turbos durante 6,5 segundos al terminar la repetición de un gol. La activación manual mantiene las cámaras visibles. Los ajustes se guardan con el perfil.
+
+
+## Actualización 0.8.4
+
+- Cámaras manuales excluyentes en Marcador → Cámaras. Al activar estadísticas se desactivan turbos y viceversa.
+- Cámaras de turbo automáticas durante 6,5 segundos tras la repetición, con precarga de los enlaces.
+- Durante la repetición se ocultan marcador, estadísticas, turbos y cámaras. La barra de repetición conserva su opción independiente.
+- Cámaras a todo ancho y fondo transparente, conservando la franja del nombre y turbo. En RCK son rectangulares con cabeceras inclinadas.
+- Una única instancia de Piruleta Studio en Windows, tanto desde el launcher como desde el ejecutable.
+
+Abre `Abrir Piruleta Studio.cmd` para usar la 0.8.5. Los enlaces OBS Ninja / VDO.Ninja y los modos de cámara se guardan en los perfiles.
+
+
+## Versión 0.8.5
+
+- Coches incorpora las plataformas elevadas, pantallas curvas con marco, fondos animados y aros continuos de Animaciones 1.4.1. VS iluminado y victoria rediseñada con GANADOR y texto a la izquierda, escudo y nombre a la derecha.
+- En Blender y animaciones, Texto de victoria permite personalizar ambas victorias. Aplica el texto antes de preparar vídeos. Los perfiles guardados anteriormente toman la cabecera como texto inicial. Cambiar este texto regenera las victorias y permite reutilizar Coches y Campo.
+- Una ejecución de Blender prepara todos los clips de coches que falten. El render de vídeo evita las vistas previas y el guardado de proyectos Blender. Los clips terminados se conservan en biblioteca si se interrumpe un render posterior. La carpeta de entrega recibe los cuatro MP4.
+- Marcador incorpora Ajustes con formato, textos, tres acciones y fichas de Equipo azul y Equipo naranja. Borrar nombres y escudos vacía las identidades del marcador. Los datos de los equipos usados para generar animaciones se editan en la primera pestaña.
+- BO4 muestra cuatro huecos de serie. La barra angular inferior acompaña la inclinación del marcador. El turbo inferior se reduce al mostrar seis cámaras en angular, classic y rounded. La cámara de estadísticas conserva su tamaño y RCK mantiene su distribución.
+- Pestañas del marcador a todo ancho y botones inferiores reservados. Launcher y ejecutable identifican la versión 0.8.5.
+
+Cierra la app y abre `Abrir Piruleta Studio.cmd`. El launcher abre el ejecutable 0.8.5 cuando está instalado y dispone de ejecución desde código como alternativa. Prepara nuevos vídeos para ver la ambientación actualizada. Campo conserva sus 15 segundos y escudos desde el segundo 6.

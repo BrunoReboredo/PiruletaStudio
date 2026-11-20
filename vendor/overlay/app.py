@@ -44,7 +44,7 @@ def series_state(config):
     tied = complete and wins[0] == wins[1]
     return {'target': target, 'complete': complete, 'tied': tied,
             'game': min(bestof, sum(wins) + (0 if complete else 1)),
-            'slots': target}
+            'slots': bestof if bestof % 2 == 0 else target}
 
 
 def swap_team_sides(config):
@@ -148,6 +148,8 @@ def normalize_config(raw):
     for key in c:
         if key.startswith('show_') or key in ('auto_series', 'auto_replay_cameras'):
             c[key] = bool(raw.get(key, c[key]))
+    if c['show_stats_camera'] and c['show_players_cameras']:
+        c['show_players_cameras'] = False
     if raw.get('design') in ('angular', 'rounded', 'classic', 'RCK'):
         c['design'] = raw['design']
     if raw.get('goal_style') == 'Original':
@@ -725,6 +727,13 @@ class App:
             return
         self.font_selector.configure(values=self.font_choices())
         self.vars['font'].set(CUSTOM_FONT_PREFIX + target.name)
+        self.apply()
+
+    def change_camera_mode(self, key):
+        other = {'show_stats_camera': 'show_players_cameras',
+                 'show_players_cameras': 'show_stats_camera'}.get(key)
+        if other and self.vars[key].get():
+            self.vars[other].set(False)
         self.apply()
 
     def apply(self):

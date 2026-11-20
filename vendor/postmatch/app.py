@@ -27,7 +27,7 @@ def series_state(config):
     tied = complete and wins[0] == wins[1]
     return {'target': target, 'complete': complete, 'tied': tied,
             'game': min(bestof, sum(wins) + (0 if complete else 1)),
-            'slots': target}
+            'slots': bestof if bestof % 2 == 0 else target}
 
 
 def swap_team_sides(config):

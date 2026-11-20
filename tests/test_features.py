@@ -427,6 +427,44 @@ class DesktopIntegrationTests(unittest.TestCase):
         self.app.store.ingest(dict(Event='MatchEnded', Data=dict(WinnerTeamNum=0,MatchGuid='final')))
         self.assertEqual(self.app.store.pending_victory,'victory0')
 
+    def test_manual_camera_modes_are_exclusive(self):
+        marker = self.app.marker
+        marker.vars['show_players_cameras'].set(True)
+        marker.change_camera_mode('show_players_cameras')
+        self.assertTrue(self.app.store.config['show_players_cameras'])
+        marker.vars['show_stats_camera'].set(True)
+        marker.change_camera_mode('show_stats_camera')
+        self.assertTrue(self.app.store.config['show_stats_camera'])
+        self.assertFalse(marker.vars['show_players_cameras'].get())
+        self.assertFalse(self.app.store.config['show_players_cameras'])
+
+    def test_replay_camera_timer_and_hidden_graphics_signal(self):
+        store = self.app.store
+        store.armed = True
+        store.transition('game')
+        store.playlist_id = 6
+        store.config['auto_replay_cameras'] = True
+        store.config['show_goal_replay'] = False
+        store.last_goal = dict(name='Player', team=0, speed_kmh=100)
+        store.ingest(dict(Event='GoalReplayStart', Data={}))
+        self.assertTrue(store.snapshot()['goal_replay_active'])
+        with patch.object(store, 'clock', return_value=100):
+            store.ingest(dict(Event='GoalReplayEnd', Data={}))
+            self.assertEqual(store.snapshot()['auto_camera_remaining'], 6500)
+            self.assertFalse(store.snapshot()['goal_replay_active'])
+        with patch.object(store, 'clock', return_value=106.6):
+            self.assertEqual(store.snapshot()['auto_camera_remaining'], 0)
+
+    def test_marker_settings_clear_and_bo4_slots(self):
+        marker = self.app.marker
+        self.assertEqual(marker.design_tabs.tab(0, 'text'), 'Ajustes')
+        marker.format_var.set('BO4')
+        marker.change_format()
+        self.assertEqual(self.app.store.snapshot()['series']['slots'], 4)
+        marker.clear_teams()
+        self.assertTrue(all(not t['name'] and not t['logo'] for t in self.app.store.config['teams']))
+        self.assertTrue(self.app.profile['teams'][0]['name'])
+
     def test_stats_picker_rejects_seventh_and_preserves_one_minimum(self):
         with patch.object(self.app,'error') as error:
             self.app.metric_vars['Touches'].set(True)

@@ -39,12 +39,12 @@ class App:
         self.library = Library(library_dir or LIBRARY)
         self.profile_fingerprints = set()
         self.legacy_fingerprints = set()
-        root.title('Piruleta Studio 0.8.3 · Control de retransmisión')
+        root.title('Piruleta Studio 0.8.5 · Control de retransmisión')
         self.icon_image = tk.PhotoImage(master=root, file=str(ROOT/'vendor/branding/piruleta.png'))
         root.iconphoto(True, self.icon_image)
         if os.name == 'nt':
             root.iconbitmap(default=str(ROOT/'vendor/branding/piruleta.ico'))
-        root.geometry('1190x880')
+        root.geometry('1280x940')
         root.minsize(1000, 760)
         root.configure(bg='#14121e')
         style = ttk.Style()
@@ -79,6 +79,7 @@ class App:
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         self.fields = []
         self.vars = {key: tk.StringVar(value=str(value)) for key, value in defaults().items() if key != 'teams'}
+        self.vars['victory_header'] = tk.StringVar(value=defaults()['event'])
         self.vars['render_folder'] = tk.StringVar(value=str(DATA/'renders'))
         self.password = tk.StringVar()
         self.note = tk.StringVar(value='Completa los equipos para preparar la retransmisión.')
@@ -109,7 +110,7 @@ class App:
         ttk.Label(root, textvariable=self.status, background='#14121e', foreground='#b6a9c8').pack(fill='x', padx=24, pady=(0, 12))
         ttk.Label(
             root,
-            text='Versión 0.8.3\nAplicación desarrollada por Bruno Reboredo Álvarez',
+            text='Versión 0.8.5\nAplicación desarrollada por Bruno Reboredo Álvarez',
             justify='right', background='#14121e', foreground='#b6a9c8', font=('Segoe UI', 8),
         ).pack(anchor='e', padx=24, pady=(0, 10))
         root.protocol('WM_DELETE_WINDOW', self.close)
@@ -201,6 +202,11 @@ class App:
         stadium = ttk.Combobox(prep, textvariable=self.vars['stadium'], values=('Champions Field','Mannfield','Estadio DFH'), state='readonly')
         stadium.grid(row=5, column=1, sticky='ew', pady=8)
         stadium.bind('<<ComboboxSelected>>', self.change_stadium)
+        ttk.Label(prep, text='Texto de victoria').grid(row=7, column=0, sticky='w')
+        self.victory_text = ttk.Entry(prep, textvariable=self.vars['victory_header'])
+        self.victory_text.grid(row=7, column=1, sticky='ew', pady=8)
+        self.victory_text.bind('<Return>', self.change_victory_header)
+        ttk.Button(prep, text='Aplicar texto', command=self.change_victory_header).grid(row=7, column=2, padx=8)
         ttk.Label(prep,text='Acabado común de los coches').grid(row=6,column=0,sticky='w')
         finish=ttk.Combobox(prep,textvariable=self.vars['paint_finish'],values=FINISHES,state='readonly')
         finish.grid(row=6,column=1,sticky='ew',pady=8)
@@ -360,6 +366,23 @@ class App:
         except ValueError as exc:
             self.error(exc)
 
+    def change_victory_header(self, event=None):
+        if not self.profile:
+            return
+        if self.store.armed or (self.render_thread and self.render_thread.is_alive()):
+            self.vars['victory_header'].set(self.profile.get('victory_header', self.profile['event']))
+            return
+        candidate = dict(self.profile, victory_header=self.vars['victory_header'].get())
+        try:
+            self.profile = validate(candidate)
+        except ValueError as exc:
+            self.error(exc)
+            return
+        self.profile_fingerprints = {fingerprint(self.profile)}
+        self.media.clear()
+        self.start_button.configure(state='disabled')
+        self.check_library()
+
     def change_finish(self, event=None):
         if not self.profile:
             return
@@ -462,7 +485,7 @@ class App:
 
     def populate(self, profile):
         for key, var in self.vars.items():
-            var.set(str(profile.get(key, defaults().get(key, var.get()))))
+            var.set(str(profile.get(key, profile.get('event', defaults()['event']) if key == 'victory_header' else defaults().get(key, var.get()))))
         for fields, team in zip(self.fields, profile['teams']):
             for key, var in fields.items():
                 var.set(team.get(key, ''))
@@ -565,6 +588,10 @@ class App:
         if self.render_thread and self.render_thread.is_alive():
             return
         self.cancelled.clear()
+        if self.vars['victory_header'].get().strip() != self.profile.get('victory_header', self.profile['event']):
+            self.change_victory_header()
+            if self.vars['victory_header'].get().strip() != self.profile.get('victory_header', self.profile['event']):
+                return
         profile = copy.deepcopy(self.profile)
         profile['blender'] = self.vars['blender'].get()
         profile['render_engine'] = self.vars['render_engine'].get()

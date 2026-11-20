@@ -1,7 +1,7 @@
-<!doctype html><html lang="es"><meta charset="utf-8"><title>Piruleta - Overlay 0.8.3</title>
+<!doctype html><html lang="es"><meta charset="utf-8"><title>Piruleta Studio 0.8.5</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:transparent;color:white;font-family:Verdana,sans-serif;overflow:hidden}#stage{visibility:hidden;width:1920px;height:1080px;position:absolute;transform-origin:top left;--pink:#fa54b7;--coral:#ff8875;--yellow:#ffd14c;--dark:#181426;--text:#ffffff}body.preview{background:#14121c}body.preview #stage{background:radial-gradient(ellipse at 50% 100%,#384444 0,transparent 60%),linear-gradient(150deg,#25263c,#12161e)}body.preview #stage:after{content:'VISTA PREVIA · SIN CAPTURA DEL JUEGO';position:absolute;top:570px;left:0;width:100%;text-align:center;font-size:20px;letter-spacing:6px;color:#ffffff35;z-index:-1}
-.scoreboard{position:absolute;left:360px;top:24px;width:1200px;filter:drop-shadow(0 8px 18px #0006)}.eyebrow{height:32px;background:var(--dark);display:flex;align-items:center;justify-content:center;font-size:15px;letter-spacing:3px;font-weight:700;border-top:3px solid var(--pink)}.main{display:flex;height:88px;align-items:stretch;background:var(--dark)}.team{display:flex;align-items:center;gap:18px;width:450px;padding:0 22px;background:linear-gradient(100deg,var(--pink),var(--coral));color:#171122}.team.right{background:linear-gradient(100deg,var(--coral),var(--yellow));flex-direction:row-reverse;text-align:right}.team img{height:60px;width:60px;object-fit:contain}.name{flex:1;font-size:24px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.goals{font-size:58px;font-weight:900;min-width:50px;text-align:center}.clock{width:180px;flex-shrink:0;background:#fff;color:#191321;display:flex;align-items:center;justify-content:center;font-size:47px;font-weight:900;letter-spacing:-2px}.sub{display:flex;height:32px;align-items:center;justify-content:space-around;background:var(--dark);font-size:14px;letter-spacing:2px}.pips{display:flex;gap:6px;width:240px}.pips:last-child{justify-content:flex-end}.pip{width:34px;height:6px;background:#ffffff26}.pip.on{background:var(--pink)}.pips:last-child .on{background:var(--yellow)}.roster{position:absolute;top:235px;width:285px;display:flex;flex-direction:column;gap:9px}.roster.left{left:24px}.roster.right{right:24px}.player{padding:12px 16px 10px;background:var(--dark);border-left:3px solid var(--pink);box-shadow:0 4px 12px #0004}.right .player{border-left:0;border-right:3px solid var(--yellow)}.player.observed{background:#34233f}.playerline{display:flex;justify-content:space-between;font-size:17px;font-weight:700;gap:10px}.playerline span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.bar{height:4px;background:#ffffff20;margin-top:9px}.bar i{display:block;height:100%;background:var(--pink);transition:width .15s}.right .bar i{background:var(--yellow)}.focus{position:absolute;bottom:36px;left:36px;width:440px;background:var(--dark);padding:18px 22px;border-bottom:4px solid var(--pink)}.focus small{font-size:11px;letter-spacing:3px;color:var(--pink)}.focus h2{font-size:26px;margin:0 0 12px}.stats{display:flex;justify-content:space-between;gap:12px}.stat b{font-size:23px;display:block}.stat span{font-size:10px;letter-spacing:1px;color:#bbb}.boost{position:absolute;right:45px;bottom:40px;width:145px;height:145px;border-radius:50%;background:conic-gradient(var(--yellow) calc(var(--boost)*1%),#ffffff18 0);padding:8px;box-shadow:0 0 35px #fa54b733}.boost div{border-radius:50%;background:var(--dark);height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;font-size:48px;font-weight:bold}.boost small{font-size:11px;letter-spacing:3px;color:var(--yellow)}.banner{position:absolute;top:370px;left:460px;width:1000px;text-align:center;padding:22px;background:var(--dark);border-top:4px solid var(--pink);font-size:32px;font-weight:900}.banner small{display:block;font-size:15px;letter-spacing:4px;margin-top:8px;color:var(--yellow)}.angular .main{clip-path:polygon(0 0,100% 0,97% 100%,3% 100%)}.rounded .main{border-radius:18px;overflow:hidden}.hidden{display:none!important}
+.scoreboard{position:absolute;left:360px;top:24px;width:1200px;filter:drop-shadow(0 8px 18px #0006)}.eyebrow{height:32px;background:var(--dark);display:flex;align-items:center;justify-content:center;font-size:15px;letter-spacing:3px;font-weight:700;border-top:3px solid var(--pink)}.main{display:flex;height:88px;align-items:stretch;background:var(--dark)}.team{display:flex;align-items:center;gap:18px;width:450px;padding:0 22px;background:linear-gradient(100deg,var(--pink),var(--coral));color:#171122}.team.right{background:linear-gradient(100deg,var(--coral),var(--yellow));flex-direction:row-reverse;text-align:right}.team img{height:60px;width:60px;object-fit:contain}.name{flex:1;font-size:24px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.goals{font-size:58px;font-weight:900;min-width:50px;text-align:center}.clock{width:180px;flex-shrink:0;background:#fff;color:#191321;display:flex;align-items:center;justify-content:center;font-size:47px;font-weight:900;letter-spacing:-2px}.sub{display:flex;height:32px;align-items:center;justify-content:space-between;padding:0 22px;background:var(--dark);font-size:14px;letter-spacing:2px}.pips{display:flex;gap:6px;width:240px}.pips:last-child{justify-content:flex-end}.pip{width:34px;height:6px;background:#ffffff26}.pip.on{background:var(--pink)}.pips:last-child .on{background:var(--yellow)}.roster{position:absolute;top:235px;width:285px;display:flex;flex-direction:column;gap:9px}.roster.left{left:24px}.roster.right{right:24px}.player{padding:12px 16px 10px;background:var(--dark);border-left:3px solid var(--pink);box-shadow:0 4px 12px #0004}.right .player{border-left:0;border-right:3px solid var(--yellow)}.player.observed{background:#34233f}.playerline{display:flex;justify-content:space-between;font-size:17px;font-weight:700;gap:10px}.playerline span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.bar{height:4px;background:#ffffff20;margin-top:9px}.bar i{display:block;height:100%;background:var(--pink);transition:width .15s}.right .bar i{background:var(--yellow)}.focus{position:absolute;bottom:36px;left:36px;width:440px;background:var(--dark);padding:18px 22px;border-bottom:4px solid var(--pink)}.focus small{font-size:11px;letter-spacing:3px;color:var(--pink)}.focus h2{font-size:26px;margin:0 0 12px}.stats{display:flex;justify-content:space-between;gap:12px}.stat b{font-size:23px;display:block}.stat span{font-size:10px;letter-spacing:1px;color:#bbb}.boost{position:absolute;right:45px;bottom:40px;width:145px;height:145px;border-radius:50%;background:conic-gradient(var(--yellow) calc(var(--boost)*1%),#ffffff18 0);padding:8px;box-shadow:0 0 35px #fa54b733}.boost div{border-radius:50%;background:var(--dark);height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;font-size:48px;font-weight:bold}.boost small{font-size:11px;letter-spacing:3px;color:var(--yellow)}.banner{position:absolute;top:370px;left:460px;width:1000px;text-align:center;padding:22px;background:var(--dark);border-top:4px solid var(--pink);font-size:32px;font-weight:900}.banner small{display:block;font-size:15px;letter-spacing:4px;margin-top:8px;color:var(--yellow)}.angular .main{clip-path:polygon(0 0,100% 0,97% 100%,3% 100%)}.angular .sub{clip-path:polygon(3% 0,97% 0,95.909091% 100%,4.090909% 100%)}.rounded .main{border-radius:18px;overflow:hidden}.hidden{display:none!important}
 </style><div id="stage"><div class="scoreboard" id="scoreboard"><div class="rck-wing wing0"><img id="rcklogo0"></div><div class="rck-wing wing1"><img id="rcklogo1"></div><div class="eyebrow" id="event"></div><div class="main"><div class="team"><img id="logo0"><span class="name" id="name0"></span><b class="goals" id="score0"></b></div><div class="clock" id="clock"></div><div class="team right"><img id="logo1"><span class="name" id="name1"></span><b class="goals" id="score1"></b></div></div><div class="sub"><div class="pips" id="series0"></div><span id="subtitle"></span><div class="pips" id="series1"></div></div></div><div class="roster left" id="players0"></div><div class="roster right" id="players1"></div><div class="focus" id="focus"></div><div id="focuscamera" class="player-camera hidden"></div><div class="boost" id="boost"><div><span id="boostvalue"></span><small>TURBO</small></div></div><div class="banner hidden" id="banner"></div><div id="replaybar" class="hidden"><span>↻ REPETICIÓN</span><strong id="replay-scorer"></strong><span id="replay-speed"></span></div><div id="goalcurtain" aria-hidden="true"><div class="goal-wash"></div><div class="goal-band band-a"></div><div class="goal-band band-b"></div><div class="goal-seal"><img id="goallogo" src="/assets/torneo.png"></div></div></div>
 <style>
 .team{flex:1}
@@ -159,9 +159,27 @@ body.details #focus{left:60px!important;top:135px!important;transform:none!impor
 .player.has-camera{height:auto!important;clip-path:none}
 .player .player-camera{margin-top:12px;width:calc(100% - 5px);aspect-ratio:auto}
 .rounded .player-camera{border-radius:10px}
-.RCK .player .player-camera{margin-top:18px}
+#stage:not(.RCK) .player.has-camera{position:relative;background:transparent;border-color:transparent;box-shadow:none;isolation:isolate}
+#stage:not(.RCK) .player.has-camera::before{content:'';position:absolute;top:0;left:-3px;right:0;height:var(--camera-header-height,55px);background:var(--players0-bg,var(--dark));border-left:3px solid var(--pink);z-index:-1}
+#stage:not(.RCK) .right .player.has-camera::before{left:0;right:-3px;background:var(--players1-bg,var(--dark));border-left:0;border-right:3px solid var(--yellow)}
+#stage:not(.RCK) .player-camera{background:transparent;box-shadow:none}
+
+.RCK .player .player-camera{margin-top:25px;margin-left:-25px}
+.RCK .roster.right .player .player-camera{margin-left:-35px}
+.RCK .roster .player.has-camera{background:transparent;isolation:isolate;clip-path:none}
+.RCK .roster .player.has-camera::before{content:'';position:absolute;left:0;right:0;top:0;height:45px;z-index:-1;background:var(--players0-bg,var(--dark));clip-path:polygon(0 0,95% 0,100% 100%,0 100%)}
+.RCK .roster.right .player.has-camera::before{background:var(--players1-bg,var(--dark));clip-path:polygon(5% 0,100% 0,100% 100%,0 100%)}
+.RCK .player-camera{background:transparent;box-shadow:none}
+.RCK #focuscamera{box-shadow:none}
+
 #focuscamera{position:absolute;width:295px;height:163.75px;aspect-ratio:auto;z-index:5;transform-origin:top left;box-shadow:0 4px 16px #0005}
 .goal-playing>#focuscamera,.replay-playing>#focuscamera{visibility:hidden}
+.temporary-camera-active>#focuscamera{visibility:hidden!important}
+
+
+.goal-replay-active>.scoreboard,.goal-replay-active>.roster,.goal-replay-active>.focus,.goal-replay-active>.boost,.goal-replay-active>#focuscamera,.goal-replay-active>.banner{visibility:hidden!important}
+.player{position:relative}
+.player .player-camera.preloading{position:absolute;left:0;top:0;margin:0;opacity:0;visibility:hidden;pointer-events:none}
 
 @keyframes goal-wash{0%,100%{opacity:0}14%,82%{opacity:.87}}
 @keyframes goal-sweep{0%{transform:translateX(-200%) skewX(-18deg)}18%,78%{transform:translateX(0) skewX(-18deg)}100%{transform:translateX(240%) skewX(-18deg)}}
@@ -211,7 +229,10 @@ function cameraUrl(player, config) {
  if (!player) return '';
  const name = String(player.Name || '').trim().toLocaleLowerCase();
  const camera = (config.cameras || []).find(item => item.name.trim().toLocaleLowerCase() === name);
- return camera?.url || '';
+ if (!camera?.url) return '';
+ const url = new URL(camera.url);
+ url.searchParams.set('cover', '');
+ return url.href;
 }
 function setCamera(container, url, name, placeholder = false) {
  let label = container.querySelector('.camera-preview');
@@ -242,24 +263,43 @@ function setCamera(container, url, name, placeholder = false) {
 }
 function renderCameras(state, observed) {
  const config = state.config, visible = state.overlay_visible === true;
+ const replayActive = state.goal_replay_active === true || Boolean(state.goal_replay);
+ const automatic = config.auto_replay_cameras && state.auto_camera_remaining > 0 && !replayActive;
+ stage.classList.toggle('goal-replay-active', Boolean(visible && replayActive));
+ stage.classList.toggle('temporary-camera-active', Boolean(visible && automatic));
  for (const player of state.match.players) {
   const card = playerCards.get(playerKey(player));
   if (!card) continue;
-  const automatic = config.auto_replay_cameras && state.auto_camera_remaining > 0;
   const enabled = visible && config.show_players && (config.show_players_cameras || automatic);
-  const url = enabled ? cameraUrl(player, config) : '';
+  const preload = visible && config.show_players && config.auto_replay_cameras;
+  const url = enabled || preload ? cameraUrl(player, config) : '';
   const placeholder = preview && enabled && !url;
+  const show = enabled && Boolean(url || placeholder);
   let camera = card.node.querySelector('.player-camera');
   if ((url || placeholder) && !camera) {
    camera = document.createElement('div');
    camera.className = 'player-camera';
    card.node.appendChild(camera);
   }
-  card.node.classList.toggle('has-camera', Boolean(url || placeholder));
+  card.node.classList.toggle('has-camera', Boolean(show));
   if (camera) {
    camera.style.setProperty('--camera-accent', config.colors[player.TeamNum === 1 ? 'yellow' : 'pink']);
    setCamera(camera, url, player.Name, placeholder);
-   if (url || placeholder) camera.style.height = ((camera.offsetWidth + 5) * 9 / 16 - 5) + 'px';
+   camera.classList.toggle('preloading', Boolean(url && !show));
+   if (url || placeholder) {
+    const style = getComputedStyle(card.node);
+    if (config.design === 'RCK') {
+     const width = card.node.clientWidth;
+     camera.style.width = width + 'px';
+     camera.style.height = (width * 9 / 16) + 'px';
+    } else {
+     const width = card.node.offsetWidth;
+     camera.style.marginLeft = -(parseFloat(style.paddingLeft) + parseFloat(style.borderLeftWidth)) + 'px';
+     camera.style.width = width + 'px';
+     camera.style.height = (width * 9 / 16) + 'px';
+     card.node.style.setProperty('--camera-header-height', (camera.offsetTop - parseFloat(getComputedStyle(camera).marginTop) + parseFloat(style.paddingBottom)) + 'px');
+    }
+   }
   }
  }
  const camera = $('focuscamera');
@@ -313,13 +353,13 @@ function render(s){stage.style.visibility=s.overlay_visible===true?'visible':'hi
   el.style.transform='scale('+(scale*boostFactor)+')';
   el.style.transformOrigin=rckRight?'top right':'top left';
  }
- const series=s.series||{slots:Math.floor(c.bestof/2)+1};
+ const series=s.series||{slots:c.bestof%2===0?c.bestof:Math.floor(c.bestof/2)+1};
 
  const game = series.game ?? Math.min(c.bestof, c.teams.reduce((wins, team) => wins + team.wins, 0) + 1);
  const topText = c.event.replaceAll('[GAME]', String(game)).replaceAll('[SERIE]', String(c.bestof)).replaceAll('[Serie]', String(c.bestof));
  $('event').textContent = topText;
  $('subtitle').textContent = c.round.replaceAll('[GAME]', String(game)).replaceAll('[SERIE]', String(c.bestof)).replaceAll('[Serie]', String(c.bestof));
- for(let t=0;t<2;t++){$('name'+t).textContent=c.teams[t].name;$('score'+t).textContent=m.scores[t];const logo=$('logo'+t),logoSrc=c.teams[t].logo||'/assets/torneo.png';if(logo.getAttribute('src')!==logoSrc)logo.src=logoSrc;logo.classList.toggle('hidden',!c.show_logos);const wingLogo=$('rcklogo'+t);if(wingLogo.getAttribute('src')!==logoSrc)wingLogo.src=logoSrc;wingLogo.classList.toggle('hidden',!c.show_logos);$('series'+t).innerHTML=Array.from({length:series.slots},(_,i)=>`<i class="pip ${i<c.teams[t].wins?'on':''}"></i>`).join('');
+ for(let t=0;t<2;t++){$('name'+t).textContent=c.teams[t].name;$('score'+t).textContent=m.scores[t];const logo=$('logo'+t),logoSrc=c.teams[t].logo||'/assets/torneo.png';if(logo.getAttribute('src')!==logoSrc)logo.src=logoSrc;logo.classList.toggle('hidden',!c.show_logos);const wingLogo=$('rcklogo'+t);if(wingLogo.getAttribute('src')!==logoSrc)wingLogo.src=logoSrc;wingLogo.classList.toggle('hidden',!c.show_logos);$('series'+t).innerHTML=Array.from({length:c.bestof%2===0?c.bestof:series.slots},(_,i)=>`<i class="pip ${i<c.teams[t].wins?'on':''}"></i>`).join('');
  reconcileRoster(t,m.players.filter(p=>p.TeamNum===t).sort((a,b)=>(a.Shortcut??0)-(b.Shortcut??0)),m.target,performance.now());$('players'+t).classList.toggle('hidden',!c.show_players)}
  const activeKeys=new Set(m.players.map(playerKey));for(const key of playerCards.keys()){if(!activeKeys.has(key)){playerCards.get(key).node.remove();playerCards.delete(key)}}boostTween.retain(activeKeys);
  const sec=Math.abs(Math.floor(m.time));$('clock').textContent=(m.overtime?'+':'')+Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0');
@@ -332,6 +372,28 @@ function render(s){stage.style.visibility=s.overlay_visible===true?'visible':'hi
   $('focus').style.top=(boostBottom-$('focus').offsetHeight*fs)+'px';
  }
  renderCameras(s, p);
+ if(c.design!=='RCK'&&p&&c.show_boost&&c.panels?.boost){
+  const cameras=[...stage.querySelectorAll('.roster .player.has-camera .player-camera')].filter(el=>!el.classList.contains('hidden')&&!el.classList.contains('preloading')&&getComputedStyle(el).visibility!=='hidden');
+  if(cameras.length===6){
+   const boost=$('boost'),baseScale=c.panels.boost[2]/100*1.25;
+   const width=boost.offsetWidth*baseScale,height=boost.offsetHeight*baseScale;
+   const left=parseFloat(boost.style.left),top=parseFloat(boost.style.top);
+   const right=left+width,bottom=top+height;
+   const stageRect=stage.getBoundingClientRect(),stageScale=stageRect.width/stage.offsetWidth;
+   let factor=.75;
+   for(const camera of cameras){
+    const rect=camera.getBoundingClientRect();
+    const cameraLeft=(rect.left-stageRect.left)/stageScale,cameraRight=(rect.right-stageRect.left)/stageScale;
+    const cameraBottom=(rect.bottom-stageRect.top)/stageScale;
+    if(cameraRight>right-width*factor&&cameraLeft<right&&cameraBottom>bottom-height*factor&&cameraBottom<bottom){
+     factor=Math.min(factor,Math.max(.01,(bottom-cameraBottom-12)/height));
+    }
+   }
+   boost.style.transform='scale('+(baseScale*factor)+')';
+   boost.style.left=(right-width*factor)+'px';
+   boost.style.top=(bottom-height*factor)+'px';
+  }
+ }
  updateGoal(s,c);
  const replay = s.goal_replay;
  const showReplay = s.overlay_visible === true && c.show_goal_replay !== false && c.design !== 'RCK' && !details

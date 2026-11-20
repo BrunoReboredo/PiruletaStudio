@@ -121,8 +121,8 @@ def clip_keys(profile, renderer_signature, field_renderer=None):
                   engine=profile.get('render_engine', 'EEVEE'), resolution=100)
     specifications = {
         'pre': dict(kind='pre', teams=teams, header=profile['event']),
-        'victory0': dict(kind='victory', team=teams[0], header=profile['event']),
-        'victory1': dict(kind='victory', team=teams[1], header=profile['event']),
+        'victory0': dict(kind='victory', team=teams[0], header=profile.get('victory_header', profile['event'])),
+        'victory1': dict(kind='victory', team=teams[1], header=profile.get('victory_header', profile['event'])),
     }
     result = {key: hashlib.sha256(json.dumps(dict(**shared, **spec), sort_keys=True).encode()).hexdigest()
               for key, spec in specifications.items()}
